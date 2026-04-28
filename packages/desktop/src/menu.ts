@@ -78,12 +78,12 @@ export async function createMenu(trigger: (id: string) => void) {
           }),
           await MenuItem.new({
             text: "Split panel right",
-            accelerator: "Cmd+J",
+            accelerator: "Cmd+E",
             action: () => trigger("panel.split.vertical"),
           }),
           await MenuItem.new({
             text: "Split panel down",
-            accelerator: "Shift+Cmd+J",
+            accelerator: "Shift+Cmd+E",
             action: () => trigger("panel.split.horizontal"),
           }),
           await PredefinedMenuItem.new({

@@ -68,7 +68,7 @@ export function SessionSidePanel(props: {
   const reviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const fileOpen = createMemo(() => isDesktop() && shown() && layout.fileTree.opened())
   const open = createMemo(() => reviewOpen() || fileOpen())
-  const reviewTab = createMemo(() => isDesktop())
+  const reviewTab = createMemo(() => false)
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
     if (reviewOpen()) return `calc(100% - ${layout.session.width()}px)`
@@ -360,7 +360,7 @@ export function SessionSidePanel(props: {
                   <Tabs.Content value="empty" class="flex flex-col h-full overflow-hidden contain-strict">
                     <Show when={activeTab() === "empty"}>
                       <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
-                        <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-4">
+                        <div class="h-full w-full px-6 flex flex-col items-center justify-center text-center gap-4">
                           <Mark class="w-14 opacity-20" />
                           <div class="flex flex-col gap-1.5 max-w-72">
                             <div class="text-14-medium text-text-base">{language.t("notes.empty.title")}</div>

@@ -1,4 +1,4 @@
-import { createEditor } from "solid-tiptap"
+import { Editor } from "@tiptap/core"
 import { StarterKit } from "@tiptap/starter-kit"
 import { Link } from "@tiptap/extension-link"
 import { Image } from "@tiptap/extension-image"
@@ -7,14 +7,13 @@ import { TableRow } from "@tiptap/extension-table-row"
 import { TableCell } from "@tiptap/extension-table-cell"
 import { TableHeader } from "@tiptap/extension-table-header"
 import { Markdown } from "tiptap-markdown"
-import { createSignal, onCleanup, onMount, type JSX, createEffect } from "solid-js"
+import { createSignal, onCleanup, onMount, type JSX, untrack } from "solid-js"
 import "./markdown-editor.css"
 
 export interface MarkdownEditorProps {
-  content: string
+  initialContent: string
   onChange?: (markdown: string) => void
   readonly?: boolean
-  placeholder?: string
 }
 
 interface ToolbarButtonProps {
@@ -34,6 +33,7 @@ function ToolbarButton(props: ToolbarButtonProps) {
       onClick={props.onClick}
       disabled={props.disabled}
       title={props.title}
+      tabIndex={-1}
     >
       {props.children}
     </button>
@@ -41,17 +41,17 @@ function ToolbarButton(props: ToolbarButtonProps) {
 }
 
 export function MarkdownEditor(props: MarkdownEditorProps) {
-  const [container, setContainer] = createSignal<HTMLDivElement>()
+  let surface: HTMLDivElement | undefined
+  const [editor, setEditor] = createSignal<Editor | undefined>()
   const [, setRev] = createSignal(0)
 
-  const editor = createEditor(() => {
-    const el = container()
-    if (!el) return undefined as never
-
-    return {
-      element: el,
-      content: props.content,
-      editable: !props.readonly,
+  onMount(() => {
+    if (!surface) return
+    const initialContent = untrack(() => props.initialContent)
+    const ed = new Editor({
+      element: surface,
+      content: initialContent,
+      editable: !untrack(() => props.readonly),
       extensions: [
         StarterKit.configure({}),
         Link.configure({ openOnClick: false }),
@@ -72,22 +72,14 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
           class: "markdown-editor-content",
         },
       },
-      onUpdate: ({ editor: ed }) => {
+      onUpdate: ({ editor: instance }) => {
         setRev((v) => v + 1)
-        const md = ((ed.storage as unknown as Record<string, { getMarkdown(): string }>).markdown).getMarkdown()
+        const md = ((instance.storage as unknown as Record<string, { getMarkdown(): string }>).markdown).getMarkdown()
         props.onChange?.(md)
       },
       onSelectionUpdate: () => setRev((v) => v + 1),
-      onTransaction: () => setRev((v) => v + 1),
-    }
-  })
-
-  createEffect(() => {
-    const ed = editor()
-    if (!ed) return
-    const md = ((ed.storage as unknown as Record<string, { getMarkdown(): string }>).markdown).getMarkdown()
-    if (md === props.content) return
-    ed.commands.setContent(props.content, { emitUpdate: false })
+    })
+    setEditor(ed)
   })
 
   onCleanup(() => {
@@ -109,7 +101,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
 
   return (
     <div class="markdown-editor" data-readonly={props.readonly ? "true" : undefined}>
-      <div class="markdown-editor-toolbar">
+      <div class="markdown-editor-toolbar" onMouseDown={(e) => e.preventDefault()}>
         <ToolbarButton title="Heading 1" active={isActive("heading", { level: 1 })} onClick={cmd((c) => c.toggleHeading({ level: 1 }).run())}>
           H1
         </ToolbarButton>
@@ -138,9 +130,6 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
         </ToolbarButton>
         <ToolbarButton title="Ordered list" active={isActive("orderedList")} onClick={cmd((c) => c.toggleOrderedList().run())}>
           1.
-        </ToolbarButton>
-        <ToolbarButton title="Task list" active={isActive("taskList")} onClick={cmd((c) => (c as never as { toggleTaskList(): { run(): void } }).toggleTaskList().run())}>
-          ☐
         </ToolbarButton>
         <span class="markdown-editor-toolbar-sep" />
         <ToolbarButton title="Quote" active={isActive("blockquote")} onClick={cmd((c) => c.toggleBlockquote().run())}>
@@ -196,7 +185,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
           ↷
         </ToolbarButton>
       </div>
-      <div ref={setContainer} class="markdown-editor-surface" />
+      <div ref={surface} class="markdown-editor-surface" />
     </div>
   )
 }

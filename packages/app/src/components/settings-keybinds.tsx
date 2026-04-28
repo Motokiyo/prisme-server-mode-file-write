@@ -16,7 +16,7 @@ const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(na
 const PALETTE_ID = "command.palette"
 const DEFAULT_PALETTE_KEYBIND = "mod+shift+p"
 
-type KeybindGroup = "General" | "Session" | "Navigation" | "Model and agent" | "Terminal" | "Prompt"
+type KeybindGroup = "General" | "Session" | "Navigation" | "Layout" | "Model and agent" | "Terminal" | "Prompt"
 
 type KeybindMeta = {
   title: string
@@ -26,12 +26,13 @@ type KeybindMeta = {
 type KeybindMap = Record<string, string | undefined>
 type CommandContext = ReturnType<typeof useCommand>
 
-const GROUPS: KeybindGroup[] = ["General", "Session", "Navigation", "Model and agent", "Terminal", "Prompt"]
+const GROUPS: KeybindGroup[] = ["General", "Layout", "Session", "Navigation", "Model and agent", "Terminal", "Prompt"]
 
 type GroupKey =
   | "settings.shortcuts.group.general"
   | "settings.shortcuts.group.session"
   | "settings.shortcuts.group.navigation"
+  | "settings.shortcuts.group.layout"
   | "settings.shortcuts.group.modelAndAgent"
   | "settings.shortcuts.group.terminal"
   | "settings.shortcuts.group.prompt"
@@ -40,6 +41,7 @@ const groupKey: Record<KeybindGroup, GroupKey> = {
   General: "settings.shortcuts.group.general",
   Session: "settings.shortcuts.group.session",
   Navigation: "settings.shortcuts.group.navigation",
+  Layout: "settings.shortcuts.group.layout",
   "Model and agent": "settings.shortcuts.group.modelAndAgent",
   Terminal: "settings.shortcuts.group.terminal",
   Prompt: "settings.shortcuts.group.prompt",
@@ -49,7 +51,8 @@ function groupFor(id: string): KeybindGroup {
   if (id === PALETTE_ID) return "General"
   if (id.startsWith("terminal.")) return "Terminal"
   if (id.startsWith("model.") || id.startsWith("agent.") || id.startsWith("mcp.")) return "Model and agent"
-  if (id.startsWith("file.") || id.startsWith("fileTree.")) return "Navigation"
+  if (id.startsWith("panel.") || id.startsWith("fileTree.") || id.startsWith("tab.")) return "Layout"
+  if (id.startsWith("file.")) return "Navigation"
   if (id.startsWith("prompt.")) return "Prompt"
   if (
     id.startsWith("session.") ||

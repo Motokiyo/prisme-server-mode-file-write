@@ -499,7 +499,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "panel.split.vertical",
       title: "Split panel right",
       description: "Open a new Prisme window next to the current one",
-      keybind: "mod+j",
+      keybind: "mod+e",
       onSelect: () => {
         void openNewPanel("vertical")
       },
@@ -508,7 +508,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "panel.split.horizontal",
       title: "Split panel down",
       description: "Open a new Prisme window below the current one",
-      keybind: "mod+shift+j",
+      keybind: "mod+shift+e",
       onSelect: () => {
         void openNewPanel("horizontal")
       },

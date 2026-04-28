@@ -693,6 +693,7 @@ export const dict = {
   "settings.shortcuts.group.general": "Général",
   "settings.shortcuts.group.session": "Session",
   "settings.shortcuts.group.navigation": "Navigation",
+  "settings.shortcuts.group.layout": "Disposition",
   "settings.shortcuts.group.modelAndAgent": "Modèle et agent",
   "settings.shortcuts.group.terminal": "Terminal",
   "settings.shortcuts.group.prompt": "Prompt",
