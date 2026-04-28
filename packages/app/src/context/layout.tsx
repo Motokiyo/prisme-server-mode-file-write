@@ -726,7 +726,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const key = createSessionKeyReader(sessionKey, ensureKey)
         const s = createMemo(() => store.sessionView[key()] ?? { scroll: {} })
         const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
-        const reviewPanelOpened = createMemo(() => false)
+        const reviewPanelOpened = createMemo(() => store.review?.panelOpened ?? false)
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal

@@ -435,7 +435,7 @@ export default function Page() {
   const isChildSession = createMemo(() => !!info()?.parentID)
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
   const canReview = createMemo(() => !!sync.project)
-  const reviewTab = createMemo(() => isDesktop())
+  const reviewTab = createMemo(() => false)
   const tabState = createSessionTabs({
     tabs,
     pathFromTab: file.pathFromTab,

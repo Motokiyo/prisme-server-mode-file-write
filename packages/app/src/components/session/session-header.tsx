@@ -450,6 +450,19 @@ export function SessionHeader() {
                 </Show>
 
                 <div class="hidden md:flex items-center gap-1 shrink-0">
+                  <Tooltip placement="bottom" value="Toggle notes editor">
+                    <Button
+                      variant="ghost"
+                      class="group/notes-toggle titlebar-icon w-8 h-6 p-0 box-border"
+                      onClick={() => view().reviewPanel.toggle()}
+                      aria-label="Toggle notes editor"
+                      aria-expanded={view().reviewPanel.opened()}
+                      aria-controls="review-panel"
+                    >
+                      <Icon size="small" name="pencil-line" />
+                    </Button>
+                  </Tooltip>
+
                   <Show when={tree()}>
                     <TooltipKeybind
                       title={language.t("command.fileTree.toggle")}
