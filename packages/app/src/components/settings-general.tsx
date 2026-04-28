@@ -385,6 +385,40 @@ export const SettingsGeneral: Component = () => {
             />
           </div>
         </SettingsRow>
+
+        <SettingsRow
+          title="Deepgram API key"
+          description="Used by the microphone button in the prompt for live voice-to-text. Get a key at https://console.deepgram.com"
+        >
+          <div data-action="settings-voice-deepgram-key" style={{ "min-width": "260px" }}>
+            <TextField
+              type="password"
+              value={settings.voice.deepgramApiKey()}
+              placeholder="dg_..."
+              onInput={(e) => settings.voice.setDeepgramApiKey((e.currentTarget as HTMLInputElement).value)}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow title="Voice language" description="BCP-47 language code passed to Deepgram (fr, en, es, de, ...).">
+          <div data-action="settings-voice-language" style={{ "min-width": "120px" }}>
+            <TextField
+              value={settings.voice.language()}
+              placeholder="fr"
+              onInput={(e) => settings.voice.setLanguage((e.currentTarget as HTMLInputElement).value)}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow title="Voice model" description="Deepgram model name (default: nova-3).">
+          <div data-action="settings-voice-model" style={{ "min-width": "180px" }}>
+            <TextField
+              value={settings.voice.model()}
+              placeholder="nova-3"
+              onInput={(e) => settings.voice.setModel((e.currentTarget as HTMLInputElement).value)}
+            />
+          </div>
+        </SettingsRow>
       </SettingsList>
     </div>
   )
