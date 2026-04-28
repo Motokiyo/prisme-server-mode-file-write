@@ -76,6 +76,19 @@ export async function createMenu(trigger: (id: string) => void) {
           await PredefinedMenuItem.new({
             item: "Separator",
           }),
+          await MenuItem.new({
+            text: "Split panel right",
+            accelerator: "Cmd+D",
+            action: () => trigger("panel.split.vertical"),
+          }),
+          await MenuItem.new({
+            text: "Split panel down",
+            accelerator: "Shift+Cmd+D",
+            action: () => trigger("panel.split.horizontal"),
+          }),
+          await PredefinedMenuItem.new({
+            item: "Separator",
+          }),
           await PredefinedMenuItem.new({
             item: "CloseWindow",
           }),

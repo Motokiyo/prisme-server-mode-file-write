@@ -431,7 +431,7 @@ export function SessionHeader() {
                     <StatusPopover />
                   </Tooltip>
                 </Show>
-                <Show when={term()}>
+                <Show when={term() && settings.general.showTerminal()}>
                   <TooltipKeybind
                     title={language.t("command.terminal.toggle")}
                     keybind={command.keybind("terminal.toggle")}
@@ -450,22 +450,6 @@ export function SessionHeader() {
                 </Show>
 
                 <div class="hidden md:flex items-center gap-1 shrink-0">
-                  <TooltipKeybind
-                    title={language.t("command.review.toggle")}
-                    keybind={command.keybind("review.toggle")}
-                  >
-                    <Button
-                      variant="ghost"
-                      class="group/review-toggle titlebar-icon w-8 h-6 p-0 box-border"
-                      onClick={() => view().reviewPanel.toggle()}
-                      aria-label={language.t("command.review.toggle")}
-                      aria-expanded={view().reviewPanel.opened()}
-                      aria-controls="review-panel"
-                    >
-                      <Icon size="small" name={view().reviewPanel.opened() ? "review-active" : "review"} />
-                    </Button>
-                  </TooltipKeybind>
-
                   <Show when={tree()}>
                     <TooltipKeybind
                       title={language.t("command.fileTree.toggle")}
