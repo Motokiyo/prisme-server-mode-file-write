@@ -217,8 +217,8 @@ export function MicrophoneButton() {
         aria-pressed={recording()}
       >
         <Show when={recording()} fallback={<MicIcon class="size-4.5" />}>
-          <span class="relative inline-flex size-3 rounded-full bg-red-500">
-            <span class="absolute inset-0 rounded-full bg-red-500 opacity-60 animate-ping" />
+          <span class="relative inline-flex size-3.5 rounded-sm bg-red-500">
+            <span class="absolute inset-0 rounded-sm bg-red-500 opacity-60 animate-ping" />
           </span>
         </Show>
       </Button>
