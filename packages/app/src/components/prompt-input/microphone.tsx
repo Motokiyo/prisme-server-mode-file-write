@@ -110,6 +110,15 @@ export function MicrophoneButton() {
       })
       return
     }
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      showToast({
+        variant: "error",
+        title: "Voice input not available",
+        description:
+          "navigator.mediaDevices is not exposed by this WebView. Voice input on macOS Tauri WebKit requires a build flag that is currently disabled to avoid a system crash.",
+      })
+      return
+    }
     setBusy(true)
     try {
       const audio = await navigator.mediaDevices.getUserMedia({
