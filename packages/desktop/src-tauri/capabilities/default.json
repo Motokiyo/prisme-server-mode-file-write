@@ -55,6 +55,12 @@
       "identifier": "fs:scope",
       "allow": [{ "path": "**" }]
     },
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-create-webview",
+    "core:window:allow-create",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-scale-factor",
     "clipboard-manager:allow-read-image"
   ]
 }

@@ -58,6 +58,7 @@
     "@solidjs/meta": "catalog:",
     "@solidjs/router": "catalog:",
     "@tanstack/solid-query": "5.91.4",
+    "@tauri-apps/api": "2.10.1",
     "@tauri-apps/plugin-fs": "2.5.0",
     "@thisbeyond/solid-dnd": "0.7.5",
     "@tiptap/core": "3.22.5",
