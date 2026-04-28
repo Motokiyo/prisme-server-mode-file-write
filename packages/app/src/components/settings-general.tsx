@@ -388,34 +388,57 @@ export const SettingsGeneral: Component = () => {
 
         <SettingsRow
           title="Deepgram API key"
-          description="Used by the microphone button in the prompt for live voice-to-text. Get a key at https://console.deepgram.com"
+          description="Live voice-to-text in the prompt input. Get a key at console.deepgram.com."
         >
-          <div data-action="settings-voice-deepgram-key" style={{ "min-width": "260px" }}>
+          <div class="w-full sm:w-[260px]">
             <TextField
+              data-action="settings-voice-deepgram-key"
+              label="Deepgram API key"
+              hideLabel
               type="password"
               value={settings.voice.deepgramApiKey()}
               placeholder="dg_..."
-              onInput={(e) => settings.voice.setDeepgramApiKey((e.currentTarget as HTMLInputElement).value)}
+              onChange={(value) => settings.voice.setDeepgramApiKey(value)}
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
             />
           </div>
         </SettingsRow>
 
-        <SettingsRow title="Voice language" description="BCP-47 language code passed to Deepgram (fr, en, es, de, ...).">
-          <div data-action="settings-voice-language" style={{ "min-width": "120px" }}>
+        <SettingsRow title="Voice language" description="BCP-47 language code (fr, en, es, de, ...).">
+          <div class="w-full sm:w-[120px]">
             <TextField
+              data-action="settings-voice-language"
+              label="Voice language"
+              hideLabel
+              type="text"
               value={settings.voice.language()}
               placeholder="fr"
-              onInput={(e) => settings.voice.setLanguage((e.currentTarget as HTMLInputElement).value)}
+              onChange={(value) => settings.voice.setLanguage(value)}
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
             />
           </div>
         </SettingsRow>
 
         <SettingsRow title="Voice model" description="Deepgram model name (default: nova-3).">
-          <div data-action="settings-voice-model" style={{ "min-width": "180px" }}>
+          <div class="w-full sm:w-[180px]">
             <TextField
+              data-action="settings-voice-model"
+              label="Voice model"
+              hideLabel
+              type="text"
               value={settings.voice.model()}
               placeholder="nova-3"
-              onInput={(e) => settings.voice.setModel((e.currentTarget as HTMLInputElement).value)}
+              onChange={(value) => settings.voice.setModel(value)}
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
             />
           </div>
         </SettingsRow>
