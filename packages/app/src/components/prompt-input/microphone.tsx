@@ -2,7 +2,21 @@ import { createSignal, onCleanup, Show } from "solid-js"
 import { Button } from "@opencode-ai/ui/button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { showToast } from "@opencode-ai/ui/toast"
+import { Channel, invoke } from "@tauri-apps/api/core"
 import { useSettings } from "@/context/settings"
+
+interface DeepgramMessage {
+  type?: string
+  is_final?: boolean
+  channel?: {
+    alternatives?: Array<{ transcript?: string }>
+  }
+}
+
+interface VoiceStartResponse {
+  sample_rate: number
+  channels: number
+}
 
 function MicIcon(props: { class?: string }) {
   return (
@@ -24,14 +38,6 @@ function MicIcon(props: { class?: string }) {
   )
 }
 
-interface DeepgramFinalMessage {
-  type?: string
-  is_final?: boolean
-  channel?: {
-    alternatives?: Array<{ transcript?: string }>
-  }
-}
-
 function focusPromptEditor(): HTMLElement | null {
   const el = document.querySelector<HTMLElement>('[data-component="prompt-input"]')
   if (!el) return null
@@ -51,14 +57,24 @@ function insertTranscript(text: string) {
   if (!text) return
   const el = focusPromptEditor()
   if (!el) return
-  const trimmed = text
   const needsSpace = el.textContent && el.textContent.length > 0 && !el.textContent.endsWith(" ")
-  const insert = (needsSpace ? " " : "") + trimmed + " "
+  const insert = (needsSpace ? " " : "") + text + " "
   const ok = document.execCommand("insertText", false, insert)
   if (!ok) {
     el.append(document.createTextNode(insert))
     el.dispatchEvent(new Event("input", { bubbles: true }))
   }
+}
+
+function chunkToUint8(chunk: unknown): Uint8Array {
+  if (chunk instanceof Uint8Array) return chunk
+  if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk)
+  if (Array.isArray(chunk)) return Uint8Array.from(chunk as number[])
+  if (chunk && typeof chunk === "object" && "byteLength" in (chunk as ArrayBufferView)) {
+    const view = chunk as ArrayBufferView
+    return new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+  }
+  return new Uint8Array()
 }
 
 export function MicrophoneButton() {
@@ -67,21 +83,15 @@ export function MicrophoneButton() {
   const [busy, setBusy] = createSignal(false)
 
   let socket: WebSocket | null = null
-  let recorder: MediaRecorder | null = null
-  let stream: MediaStream | null = null
+  let stopping = false
 
-  const cleanup = () => {
-    if (recorder && recorder.state !== "inactive") {
-      try {
-        recorder.stop()
-      } catch {
-        // ignore
-      }
-    }
-    recorder = null
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop())
-      stream = null
+  const cleanup = async () => {
+    if (stopping) return
+    stopping = true
+    try {
+      await invoke("voice_stop")
+    } catch (err) {
+      console.error("voice_stop:", err)
     }
     if (socket) {
       try {
@@ -95,9 +105,12 @@ export function MicrophoneButton() {
       socket = null
     }
     setRecording(false)
+    stopping = false
   }
 
-  onCleanup(cleanup)
+  onCleanup(() => {
+    void cleanup()
+  })
 
   const start = async () => {
     if (busy() || recording()) return
@@ -106,29 +119,17 @@ export function MicrophoneButton() {
       showToast({
         variant: "error",
         title: "Deepgram API key missing",
-        description: "Add your Deepgram API key in Settings > General > Voice.",
+        description: "Add your Deepgram API key in Settings > General.",
       })
       return
     }
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
-      showToast({
-        variant: "error",
-        title: "Voice input not available",
-        description:
-          "navigator.mediaDevices is not exposed by this WebView. Voice input on macOS Tauri WebKit requires a build flag that is currently disabled to avoid a system crash.",
-      })
-      return
-    }
+
     setBusy(true)
     try {
-      const audio = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 16000,
-        },
+      const chunkChannel = new Channel<unknown>()
+      const { sample_rate } = await invoke<VoiceStartResponse>("voice_start", {
+        onChunk: chunkChannel,
       })
-      stream = audio
 
       const params = new URLSearchParams({
         model: settings.voice.model() || "nova-3",
@@ -136,27 +137,19 @@ export function MicrophoneButton() {
         interim_results: "true",
         smart_format: "true",
         punctuate: "true",
-        vad_events: "true",
-        encoding: "opus",
+        encoding: "linear16",
+        sample_rate: String(sample_rate),
+        channels: "1",
       })
 
-      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, ["token", apiKey])
+      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
+        "token",
+        apiKey,
+      ])
       socket = ws
+      ws.binaryType = "arraybuffer"
 
       ws.onopen = () => {
-        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : MediaRecorder.isTypeSupported("audio/webm")
-            ? "audio/webm"
-            : ""
-        const r = new MediaRecorder(audio, mimeType ? { mimeType } : undefined)
-        recorder = r
-        r.addEventListener("dataavailable", (event) => {
-          if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-            ws.send(event.data)
-          }
-        })
-        r.start(250)
         setRecording(true)
         setBusy(false)
         focusPromptEditor()
@@ -164,14 +157,14 @@ export function MicrophoneButton() {
 
       ws.onmessage = (message) => {
         try {
-          const received = JSON.parse(message.data) as DeepgramFinalMessage
+          const received = JSON.parse(message.data) as DeepgramMessage
           if (received.type !== "Results") return
           const transcript = received.channel?.alternatives?.[0]?.transcript ?? ""
           if (received.is_final && transcript.trim()) {
             insertTranscript(transcript.trim())
           }
         } catch {
-          // ignore non-JSON
+          // ignore non-JSON metadata frames
         }
       }
 
@@ -181,25 +174,33 @@ export function MicrophoneButton() {
           title: "Voice transcription failed",
           description: "Connection to Deepgram failed. Check your API key and network.",
         })
-        cleanup()
+        void cleanup()
       }
 
       ws.onclose = () => {
-        cleanup()
+        if (recording()) void cleanup()
+      }
+
+      chunkChannel.onmessage = (chunk) => {
+        const bytes = chunkToUint8(chunk)
+        if (bytes.byteLength === 0) return
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(bytes)
+        }
       }
     } catch (err) {
       setBusy(false)
       showToast({
         variant: "error",
-        title: "Microphone access denied",
+        title: "Microphone unavailable",
         description: err instanceof Error ? err.message : String(err),
       })
-      cleanup()
+      void cleanup()
     }
   }
 
   const toggle = () => {
-    if (recording()) cleanup()
+    if (recording() || busy()) void cleanup()
     else void start()
   }
 
