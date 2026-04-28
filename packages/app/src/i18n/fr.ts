@@ -464,6 +464,11 @@ export const dict = {
   "session.review.noSnapshot":
     "Le suivi des instantanés est désactivé dans la configuration, les modifications de session sont donc indisponibles",
   "session.files.selectToOpen": "Sélectionnez un fichier à ouvrir",
+  "notes.empty.title": "Aucune note ouverte",
+  "notes.empty.description": "Choisissez un fichier dans l'explorateur de gauche ou créez une nouvelle note.",
+  "notes.empty.create": "Créer une nouvelle note",
+  "notes.create.prompt": "Nom de la note (sans extension .md)",
+  "notes.create.defaultBody": "# {{name}}\n",
   "session.files.all": "Tous les fichiers",
   "session.files.empty": "Aucun fichier",
   "session.files.binaryContent": "Fichier binaire (le contenu ne peut pas être affiché)",

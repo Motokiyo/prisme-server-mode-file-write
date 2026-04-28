@@ -2,7 +2,10 @@ import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, type JSX
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Tabs } from "@opencode-ai/ui/tabs"
+import { Button } from "@opencode-ai/ui/button"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { showToast } from "@opencode-ai/ui/toast"
+import { writeTextFile, exists } from "@tauri-apps/plugin-fs"
 import { TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Mark } from "@opencode-ai/ui/logo"
@@ -20,6 +23,7 @@ import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
@@ -46,10 +50,12 @@ export function SessionSidePanel(props: {
   const settings = useSettings()
   const sync = useSync()
   const file = useFile()
+  const sdk = useSDK()
   const language = useLanguage()
   const command = useCommand()
   const dialog = useDialog()
   const { sessionKey, tabs, view } = useSessionLayout()
+
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const shown = createMemo(
@@ -129,6 +135,47 @@ export function SessionSidePanel(props: {
     openReviewPanel,
     setActive: tabs().setActive,
   })
+
+  const sanitizeNoteName = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return ""
+    const cleaned = trimmed.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ")
+    return cleaned.endsWith(".md") ? cleaned : `${cleaned}.md`
+  }
+
+  const createNote = async () => {
+    const raw = window.prompt(language.t("notes.create.prompt"))
+    if (!raw) return
+    const filename = sanitizeNoteName(raw)
+    if (!filename) return
+    const dir = sdk.directory
+    if (!dir) {
+      showToast({
+        variant: "error",
+        title: "No workspace open",
+        description: "Open a workspace before creating a note.",
+      })
+      return
+    }
+    const sep = dir.endsWith("/") || dir.endsWith("\\") ? "" : "/"
+    const absolute = `${dir}${sep}${filename}`
+    try {
+      const already = await exists(absolute)
+      if (!already) {
+        const baseName = filename.replace(/\.md$/, "")
+        const body = language.t("notes.create.defaultBody").replace("{{name}}", baseName)
+        await writeTextFile(absolute, body)
+      }
+      view().reviewPanel.open()
+      openTab(file.tab(filename))
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Failed to create note",
+        description: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
 
   const tabState = createSessionTabs({
     tabs,
@@ -313,11 +360,17 @@ export function SessionSidePanel(props: {
                   <Tabs.Content value="empty" class="flex flex-col h-full overflow-hidden contain-strict">
                     <Show when={activeTab() === "empty"}>
                       <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
-                        <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-6">
-                          <Mark class="w-14 opacity-10" />
-                          <div class="text-14-regular text-text-weak max-w-56">
-                            {language.t("session.files.selectToOpen")}
+                        <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-4">
+                          <Mark class="w-14 opacity-20" />
+                          <div class="flex flex-col gap-1.5 max-w-72">
+                            <div class="text-14-medium text-text-base">{language.t("notes.empty.title")}</div>
+                            <div class="text-13-regular text-text-weak">
+                              {language.t("notes.empty.description")}
+                            </div>
                           </div>
+                          <Button size="normal" onClick={() => void createNote()}>
+                            {language.t("notes.empty.create")}
+                          </Button>
                         </div>
                       </div>
                     </Show>

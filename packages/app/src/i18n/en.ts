@@ -541,6 +541,11 @@ export const dict = {
   "session.review.noBranchChanges": "No branch changes yet",
 
   "session.files.selectToOpen": "Select a file to open",
+  "notes.empty.title": "No note open",
+  "notes.empty.description": "Pick a file in the left explorer or create a new note.",
+  "notes.empty.create": "Create a new note",
+  "notes.create.prompt": "Note name (without .md extension)",
+  "notes.create.defaultBody": "# {{name}}\n",
   "session.files.all": "All files",
   "session.files.empty": "No files",
   "session.files.binaryContent": "Binary file (content cannot be displayed)",
