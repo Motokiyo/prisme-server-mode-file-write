@@ -29,3 +29,6 @@ UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+# Tauri sidecar binary (copied locally from user's opencode install)
+packages/desktop/src-tauri/sidecars/
