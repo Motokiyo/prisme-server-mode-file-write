@@ -19,7 +19,6 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { closeCurrentPanel, openNewPanel } from "@/utils/panels"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -435,7 +434,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     fileCommand({
       id: "tab.close",
       title: language.t("command.tab.close"),
-      keybind: "mod+alt+w",
+      keybind: "mod+w",
       disabled: !closableTab(),
       onSelect: closeTab,
     }),
@@ -494,35 +493,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
   ]
 
-  const panelCmds = () => [
-    viewCommand({
-      id: "panel.split.vertical",
-      title: "Split panel right",
-      description: "Open a new Prisme window next to the current one",
-      keybind: "mod+e",
-      onSelect: () => {
-        void openNewPanel("vertical")
-      },
-    }),
-    viewCommand({
-      id: "panel.split.horizontal",
-      title: "Split panel down",
-      description: "Open a new Prisme window below the current one",
-      keybind: "mod+shift+e",
-      onSelect: () => {
-        void openNewPanel("horizontal")
-      },
-    }),
-    viewCommand({
-      id: "panel.close",
-      title: "Close panel",
-      description: "Close the current Prisme window (Cmd+W via system menu)",
-      onSelect: () => {
-        void closeCurrentPanel(closableTab() ? closeTab : undefined)
-      },
-    }),
-  ]
-
   const messageCmds = () => [
     sessionCommand({
       id: "message.previous",
@@ -555,7 +525,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "model.variant.cycle",
       title: language.t("command.model.variant.cycle"),
       description: language.t("command.model.variant.cycle.description"),
-      keybind: "mod+alt+m",
+      keybind: "shift+mod+d",
       onSelect: () => local.model.variant.cycle(),
     }),
   ]
@@ -608,7 +578,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     ...contextCmds(),
     ...viewCmds(),
     ...terminalCmds(),
-    ...panelCmds(),
     ...messageCmds(),
     ...modelCmds(),
     ...mcpCmds(),

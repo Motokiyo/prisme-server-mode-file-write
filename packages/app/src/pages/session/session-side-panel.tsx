@@ -5,7 +5,6 @@ import { Tabs } from "@opencode-ai/ui/tabs"
 import { Button } from "@opencode-ai/ui/button"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { showToast } from "@opencode-ai/ui/toast"
-import { writeTextFile, exists } from "@tauri-apps/plugin-fs"
 import { TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Mark } from "@opencode-ai/ui/logo"
@@ -55,7 +54,6 @@ export function SessionSidePanel(props: {
   const command = useCommand()
   const dialog = useDialog()
   const { sessionKey, tabs, view } = useSessionLayout()
-
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const shown = createMemo(
@@ -149,7 +147,7 @@ export function SessionSidePanel(props: {
     const filename = sanitizeNoteName(raw)
     if (!filename) return
     const dir = sdk.directory
-    if (!dir) {
+    if (!dir || !platform.writeTextFile || !platform.pathExists) {
       showToast({
         variant: "error",
         title: "No workspace open",
@@ -157,14 +155,15 @@ export function SessionSidePanel(props: {
       })
       return
     }
+
     const sep = dir.endsWith("/") || dir.endsWith("\\") ? "" : "/"
     const absolute = `${dir}${sep}${filename}`
     try {
-      const already = await exists(absolute)
+      const already = await platform.pathExists(absolute)
       if (!already) {
         const baseName = filename.replace(/\.md$/, "")
         const body = language.t("notes.create.defaultBody").replace("{{name}}", baseName)
-        await writeTextFile(absolute, body)
+        await platform.writeTextFile(absolute, body)
       }
       view().reviewPanel.open()
       openTab(file.tab(filename))
@@ -190,11 +189,6 @@ export function SessionSidePanel(props: {
   const activeFileTab = tabState.activeFileTab
 
   const fileTreeTab = () => layout.fileTree.tab()
-
-  const setFileTreeTabValue = (value: string) => {
-    if (value !== "changes" && value !== "all") return
-    layout.fileTree.setTab(value)
-  }
 
   const showAllFiles = () => {
     if (fileTreeTab() !== "changes") return

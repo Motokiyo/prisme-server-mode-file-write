@@ -2,56 +2,86 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--background-base, #fff);
-  color: var(--text-base, #111);
-  font-family: var(--sans, system-ui, -apple-system, Helvetica, Arial, sans-serif);
+  background: var(--background-base);
+  color: var(--text-base);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
 }
 
 .markdown-editor-toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border-weaker-base, #e5e5e5);
-  background: var(--background-stronger, #fafafa);
+  flex-wrap: nowrap;
+  gap: 2px;
+  min-height: 40px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border-weaker-base);
+  background: var(--background-base);
   position: sticky;
   top: 0;
   z-index: 10;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-weaker-base) transparent;
+}
+
+.markdown-editor-toolbar::-webkit-scrollbar {
+  height: 5px;
+}
+
+.markdown-editor-toolbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdown-editor-toolbar::-webkit-scrollbar-thumb {
+  background: var(--border-weaker-base);
+  border-radius: 999px;
 }
 
 .markdown-editor-toolbar-sep {
   display: inline-block;
+  flex: 0 0 auto;
   width: 1px;
   align-self: stretch;
-  margin: 4px 4px;
-  background: var(--border-weaker-base, #e5e5e5);
+  margin: 6px 5px;
+  background: var(--border-weaker-base);
 }
 
 .markdown-editor-toolbar-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-base, #111);
-  font-size: 13px;
+  color: var(--text-weak);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   user-select: none;
-  transition: background-color 80ms ease, border-color 80ms ease;
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease,
+    color 100ms ease;
 }
 
 .markdown-editor-toolbar-button:hover {
-  background: var(--background-base, #f0f0f0);
+  background: var(--surface-base-hover);
+  color: var(--text-base);
 }
 
 .markdown-editor-toolbar-button.active {
-  background: var(--background-base, #e8e8e8);
-  border-color: var(--border-weaker-base, #d0d0d0);
+  background: var(--surface-base-active);
+  border-color: var(--border-weaker-base);
+  color: var(--text-strong);
 }
 
 .markdown-editor-toolbar-button.disabled,
@@ -63,20 +93,24 @@
 .markdown-editor-surface {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: 24px 32px 80px;
+  padding: 22px 28px 72px;
+  background: var(--background-base);
 }
 
 [data-readonly="true"] .markdown-editor-surface {
-  background: var(--background-stronger, #fafafa);
+  background: var(--background-base);
 }
 
 .markdown-editor-content {
   outline: none;
   min-height: 100%;
-  line-height: 1.65;
-  font-size: 15px;
-  max-width: 760px;
-  margin: 0 auto;
+  line-height: 1.62;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  color: var(--text-base);
+  max-width: 780px;
+  margin: 0;
+  caret-color: var(--text-strong);
 }
 
 .markdown-editor-content h1,
@@ -86,32 +120,32 @@
 .markdown-editor-content h5,
 .markdown-editor-content h6 {
   font-weight: 600;
-  line-height: 1.3;
-  margin: 1.5em 0 0.6em;
+  line-height: 1.25;
+  margin: 1.45em 0 0.55em;
+  color: var(--text-strong);
 }
 
 .markdown-editor-content h1 {
-  font-size: 1.85em;
-  border-bottom: 1px solid var(--border-weaker-base, #e5e5e5);
-  padding-bottom: 0.3em;
+  font-size: 1.65em;
+  letter-spacing: 0;
 }
 
 .markdown-editor-content h2 {
-  font-size: 1.4em;
+  font-size: 1.3em;
 }
 
 .markdown-editor-content h3 {
-  font-size: 1.2em;
+  font-size: 1.12em;
 }
 
 .markdown-editor-content p {
-  margin: 0.7em 0;
+  margin: 0.62em 0;
 }
 
 .markdown-editor-content ul,
 .markdown-editor-content ol {
   padding-left: 1.6em;
-  margin: 0.7em 0;
+  margin: 0.62em 0;
 }
 
 .markdown-editor-content li {
@@ -120,25 +154,26 @@
 
 .markdown-editor-content blockquote {
   margin: 0.8em 0;
-  padding: 0.4em 1em;
-  border-left: 3px solid var(--border-weaker-base, #d0d0d0);
-  color: var(--text-weak, #666);
+  padding: 0.35em 0 0.35em 0.9em;
+  border-left: 2px solid var(--border-strong-base);
+  color: var(--text-weak);
 }
 
 .markdown-editor-content code {
-  background: var(--background-stronger, #f4f4f4);
+  background: var(--surface-base-active);
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--font-family-mono);
   font-size: 0.92em;
 }
 
 .markdown-editor-content pre {
-  background: var(--background-stronger, #f4f4f4);
+  background: var(--background-stronger);
+  border: 1px solid var(--border-weaker-base);
   padding: 12px 14px;
   border-radius: 8px;
   overflow-x: auto;
-  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--font-family-mono);
   font-size: 0.9em;
   margin: 0.8em 0;
 }
@@ -150,8 +185,8 @@
 }
 
 .markdown-editor-content a {
-  color: #2563eb;
-  text-decoration: underline;
+  color: var(--markdown-link);
+  text-decoration: none;
 }
 
 .markdown-editor-content table {
@@ -162,18 +197,18 @@
 
 .markdown-editor-content table th,
 .markdown-editor-content table td {
-  border: 1px solid var(--border-weaker-base, #d0d0d0);
+  border: 1px solid var(--border-weaker-base);
   padding: 6px 10px;
 }
 
 .markdown-editor-content table th {
-  background: var(--background-stronger, #f4f4f4);
+  background: var(--background-stronger);
   font-weight: 600;
 }
 
 .markdown-editor-content hr {
   border: none;
-  border-top: 1px solid var(--border-weaker-base, #d0d0d0);
+  border-top: 1px solid var(--border-weaker-base);
   margin: 1.4em 0;
 }
 
@@ -181,4 +216,16 @@
   max-width: 100%;
   height: auto;
   border-radius: 6px;
+}
+
+.markdown-editor-content .ProseMirror-selectednode {
+  outline: 2px solid var(--border-strong-base);
+}
+
+.markdown-editor-content p.is-editor-empty:first-child::before {
+  color: var(--text-weaker);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }

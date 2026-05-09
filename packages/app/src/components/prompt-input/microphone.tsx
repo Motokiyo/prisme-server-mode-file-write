@@ -1,227 +1,170 @@
 import { createSignal, onCleanup, Show } from "solid-js"
-import { Button } from "@opencode-ai/ui/button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { IconButton } from "@opencode-ai/ui/icon-button"
 import { showToast } from "@opencode-ai/ui/toast"
-import { Channel, invoke } from "@tauri-apps/api/core"
+import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 
-interface DeepgramMessage {
+type MicrophoneButtonProps = {
+  disabled?: boolean
+  onTranscript: (text: string) => void
+}
+
+type DeepgramMessage = {
   type?: string
   is_final?: boolean
+  speech_final?: boolean
   channel?: {
-    alternatives?: Array<{ transcript?: string }>
+    alternatives?: Array<{
+      transcript?: string
+    }>
   }
 }
 
-interface VoiceStartResponse {
-  sample_rate: number
-  channels: number
-}
-
-function MicIcon(props: { class?: string }) {
-  return (
-    <svg
-      class={props.class}
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      stroke="currentColor"
-      stroke-width="1.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <rect x="7.5" y="2.5" width="5" height="9.5" rx="2.5" />
-      <path d="M4.5 9.5v.75A5.5 5.5 0 0 0 10 15.75v0a5.5 5.5 0 0 0 5.5-5.5V9.5" />
-      <path d="M10 15.75V18" />
-      <path d="M7 18h6" />
-    </svg>
-  )
-}
-
-function focusPromptEditor(): HTMLElement | null {
-  const el = document.querySelector<HTMLElement>('[data-component="prompt-input"]')
-  if (!el) return null
-  el.focus()
-  const sel = window.getSelection()
-  if (sel && sel.rangeCount === 0) {
-    const range = document.createRange()
-    range.selectNodeContents(el)
-    range.collapse(false)
-    sel.removeAllRanges()
-    sel.addRange(range)
+function pcm16(samples: Float32Array) {
+  const buffer = new ArrayBuffer(samples.length * 2)
+  const view = new DataView(buffer)
+  for (let index = 0; index < samples.length; index++) {
+    const sample = Math.max(-1, Math.min(1, samples[index] ?? 0))
+    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
   }
-  return el
+  return buffer
 }
 
-function insertTranscript(text: string) {
-  if (!text) return
-  const el = focusPromptEditor()
-  if (!el) return
-  const needsSpace = el.textContent && el.textContent.length > 0 && !el.textContent.endsWith(" ")
-  const insert = (needsSpace ? " " : "") + text + " "
-  const ok = document.execCommand("insertText", false, insert)
-  if (!ok) {
-    el.append(document.createTextNode(insert))
-    el.dispatchEvent(new Event("input", { bubbles: true }))
-  }
+function deepgramURL(input: { model: string; language: string; sampleRate: number }) {
+  const params = new URLSearchParams({
+    model: input.model,
+    language: input.language,
+    encoding: "linear16",
+    sample_rate: String(input.sampleRate),
+    channels: "1",
+    interim_results: "true",
+    smart_format: "true",
+    punctuate: "true",
+  })
+  return `wss://api.deepgram.com/v1/listen?${params.toString()}`
 }
 
-function chunkToUint8(chunk: unknown): Uint8Array {
-  if (chunk instanceof Uint8Array) return chunk
-  if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk)
-  if (Array.isArray(chunk)) return Uint8Array.from(chunk as number[])
-  if (chunk && typeof chunk === "object" && "byteLength" in (chunk as ArrayBufferView)) {
-    const view = chunk as ArrayBufferView
-    return new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
-  }
-  return new Uint8Array()
-}
-
-export function MicrophoneButton() {
+export function MicrophoneButton(props: MicrophoneButtonProps) {
+  const language = useLanguage()
   const settings = useSettings()
   const [recording, setRecording] = createSignal(false)
-  const [busy, setBusy] = createSignal(false)
 
-  let socket: WebSocket | null = null
-  let stopping = false
+  let stream: MediaStream | undefined
+  let audio: AudioContext | undefined
+  let source: MediaStreamAudioSourceNode | undefined
+  let processor: ScriptProcessorNode | undefined
+  let socket: WebSocket | undefined
 
-  const cleanup = async () => {
-    if (stopping) return
-    stopping = true
-    try {
-      await invoke("voice_stop")
-    } catch (err) {
-      console.error("voice_stop:", err)
-    }
-    if (socket) {
-      try {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "CloseStream" }))
-        }
-        socket.close()
-      } catch {
-        // ignore
-      }
-      socket = null
-    }
+  const stop = () => {
     setRecording(false)
-    stopping = false
+    processor?.disconnect()
+    source?.disconnect()
+    stream?.getTracks().forEach((track) => track.stop())
+    void audio?.close().catch(() => undefined)
+    if (socket && socket.readyState <= WebSocket.OPEN) socket.close()
+    processor = undefined
+    source = undefined
+    stream = undefined
+    audio = undefined
+    socket = undefined
   }
 
-  onCleanup(() => {
-    void cleanup()
-  })
-
   const start = async () => {
-    if (busy() || recording()) return
-    const apiKey = settings.voice.deepgramApiKey()
+    const apiKey = settings.voice.deepgramApiKey().trim()
     if (!apiKey) {
       showToast({
         variant: "error",
-        title: "Deepgram API key missing",
-        description: "Add your Deepgram API key in Settings > General.",
+        title: language.t("voice.error.missingKey.title"),
+        description: language.t("voice.error.missingKey.description"),
       })
       return
     }
 
-    setBusy(true)
     try {
-      const chunkChannel = new Channel<unknown>()
-      const { sample_rate } = await invoke<VoiceStartResponse>("voice_start", {
-        onChunk: chunkChannel,
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
       })
+      audio = new AudioContext()
+      source = audio.createMediaStreamSource(stream)
+      processor = audio.createScriptProcessor(4096, 1, 1)
+      socket = new WebSocket(
+        deepgramURL({
+          model: settings.voice.model().trim() || "nova-3",
+          language: settings.voice.language().trim() || "fr",
+          sampleRate: audio.sampleRate,
+        }),
+        ["token", apiKey],
+      )
 
-      const params = new URLSearchParams({
-        model: settings.voice.model() || "nova-3",
-        language: settings.voice.language() || "fr",
-        interim_results: "true",
-        smart_format: "true",
-        punctuate: "true",
-        encoding: "linear16",
-        sample_rate: String(sample_rate),
-        channels: "1",
-      })
-
-      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
-        "token",
-        apiKey,
-      ])
-      socket = ws
-      ws.binaryType = "arraybuffer"
-
-      ws.onopen = () => {
-        setRecording(true)
-        setBusy(false)
-        focusPromptEditor()
-      }
-
-      ws.onmessage = (message) => {
+      socket.onmessage = (event) => {
         try {
-          const received = JSON.parse(message.data) as DeepgramMessage
-          if (received.type !== "Results") return
-          const transcript = received.channel?.alternatives?.[0]?.transcript ?? ""
-          if (received.is_final && transcript.trim()) {
-            insertTranscript(transcript.trim())
-          }
+          const data = JSON.parse(String(event.data)) as DeepgramMessage
+          const transcript = data.channel?.alternatives?.[0]?.transcript?.trim()
+          if (!transcript || !(data.is_final || data.speech_final)) return
+          props.onTranscript(`${transcript} `)
         } catch {
-          // ignore non-JSON metadata frames
+          return
         }
       }
 
-      ws.onerror = () => {
+      socket.onerror = () => {
         showToast({
           variant: "error",
-          title: "Voice transcription failed",
-          description: "Connection to Deepgram failed. Check your API key and network.",
+          title: language.t("voice.error.connection.title"),
+          description: language.t("voice.error.connection.description"),
         })
-        void cleanup()
+        stop()
       }
 
-      ws.onclose = () => {
-        if (recording()) void cleanup()
+      processor.onaudioprocess = (event) => {
+        event.outputBuffer.getChannelData(0).fill(0)
+        if (!socket || socket.readyState !== WebSocket.OPEN) return
+        socket.send(pcm16(event.inputBuffer.getChannelData(0)))
       }
 
-      chunkChannel.onmessage = (chunk) => {
-        const bytes = chunkToUint8(chunk)
-        if (bytes.byteLength === 0) return
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(bytes)
-        }
-      }
+      source.connect(processor)
+      processor.connect(audio.destination)
+      setRecording(true)
     } catch (err) {
-      setBusy(false)
+      stop()
       showToast({
         variant: "error",
-        title: "Microphone unavailable",
-        description: err instanceof Error ? err.message : String(err),
+        title: language.t("voice.error.microphone.title"),
+        description: err instanceof Error ? err.message : language.t("voice.error.microphone.description"),
       })
-      void cleanup()
     }
   }
 
-  const toggle = () => {
-    if (recording() || busy()) void cleanup()
-    else void start()
-  }
+  onCleanup(stop)
 
   return (
-    <Tooltip placement="top" value={recording() ? "Stop recording" : "Start voice input"}>
-      <Button
+    <Tooltip
+      placement="top"
+      value={recording() ? language.t("voice.action.stop") : language.t("voice.action.start")}
+    >
+      <IconButton
+        data-action="prompt-microphone"
         type="button"
-        variant="ghost"
-        class="size-8 p-0"
-        classList={{ "text-red-500": recording() }}
-        onClick={toggle}
-        disabled={busy()}
-        aria-label={recording() ? "Stop recording" : "Start voice input"}
-        aria-pressed={recording()}
-      >
-        <Show when={recording()} fallback={<MicIcon class="size-4.5" />}>
-          <span class="relative inline-flex size-3.5 rounded-sm bg-red-500">
-            <span class="absolute inset-0 rounded-sm bg-red-500 opacity-60 animate-ping" />
-          </span>
-        </Show>
-      </Button>
+        disabled={props.disabled}
+        icon={recording() ? "stop" : "microphone"}
+        variant={recording() ? "primary" : "ghost"}
+        class="size-8"
+        aria-label={recording() ? language.t("voice.action.stop") : language.t("voice.action.start")}
+        onClick={() => {
+          if (recording()) {
+            stop()
+            return
+          }
+          void start()
+        }}
+      />
+      <Show when={recording()}>
+        <span class="sr-only">{language.t("voice.state.recording")}</span>
+      </Show>
     </Tooltip>
   )
 }

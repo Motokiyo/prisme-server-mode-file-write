@@ -19,7 +19,8 @@ import { usePrompt } from "@/context/prompt"
 import { getSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
-import { FileEditor } from "@/components/file-editor"
+import { artifactKindFromPath } from "@/pages/session/artifact-kind"
+import { ArtifactViewer } from "@/pages/session/artifact-viewer"
 
 function FileCommentMenu(props: {
   moreLabel: string
@@ -200,6 +201,11 @@ export function FileTabContent(props: { tab: string }) {
     return file.get(p)
   })
   const contents = createMemo(() => state()?.content?.content ?? "")
+  const artifactKind = createMemo(() => {
+    const p = path()
+    if (!p) return "text"
+    return artifactKindFromPath(p, state()?.content?.mimeType ?? undefined)
+  })
   const cacheKey = createMemo(() => sampledChecksum(contents()))
   const selectedLines = createMemo<SelectedLineRange | null>(() => {
     const p = path()
@@ -444,13 +450,20 @@ export function FileTabContent(props: { tab: string }) {
   return (
     <Tabs.Content value={props.tab} class="mt-3 relative h-full">
       <Switch>
-        <Match when={state()?.loaded}>
-          <FileEditor path={path() ?? ""} initialContent={contents()} />
+        <Match when={state()?.loaded && path() && artifactKind() !== "text"}>
+          <ArtifactViewer path={path()!} />
         </Match>
-        <Match when={state()?.loading}>
-          <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}...</div>
+        <Match when={true}>
+          <ScrollView class="h-full" viewportRef={scrollSync.setViewport} onScroll={scrollSync.handleScroll as any}>
+            <Switch>
+              <Match when={state()?.loaded}>{renderFile(contents())}</Match>
+              <Match when={state()?.loading}>
+                <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}...</div>
+              </Match>
+              <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-text-weak">{err()}</div>}</Match>
+            </Switch>
+          </ScrollView>
         </Match>
-        <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-text-weak">{err()}</div>}</Match>
       </Switch>
     </Tabs.Content>
   )

@@ -24,6 +24,8 @@ interface ToolbarButtonProps {
   children: JSX.Element
 }
 
+type CommandChain = ReturnType<Editor["chain"]>
+
 function ToolbarButton(props: ToolbarButtonProps) {
   return (
     <button
@@ -42,8 +44,35 @@ function ToolbarButton(props: ToolbarButtonProps) {
 
 export function MarkdownEditor(props: MarkdownEditorProps) {
   let surface: HTMLDivElement | undefined
+  let commitTimer: number | undefined
+  let pendingCommit = false
   const [editor, setEditor] = createSignal<Editor | undefined>()
-  const [, setRev] = createSignal(0)
+  const [selectionRev, setSelectionRev] = createSignal(0)
+
+  const markdown = (instance: Editor) =>
+    ((instance.storage as unknown as Record<string, { getMarkdown(): string }>).markdown).getMarkdown()
+
+  const flushCommit = () => {
+    if (commitTimer !== undefined) {
+      window.clearTimeout(commitTimer)
+      commitTimer = undefined
+    }
+    if (!pendingCommit) return
+    const ed = editor()
+    if (!ed) return
+    pendingCommit = false
+    props.onChange?.(markdown(ed))
+  }
+
+  const scheduleCommit = (instance: Editor) => {
+    pendingCommit = true
+    if (commitTimer !== undefined) window.clearTimeout(commitTimer)
+    commitTimer = window.setTimeout(() => {
+      commitTimer = undefined
+      pendingCommit = false
+      props.onChange?.(markdown(instance))
+    }, 700)
+  }
 
   onMount(() => {
     if (!surface) return
@@ -73,26 +102,28 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
         },
       },
       onUpdate: ({ editor: instance }) => {
-        setRev((v) => v + 1)
-        const md = ((instance.storage as unknown as Record<string, { getMarkdown(): string }>).markdown).getMarkdown()
-        props.onChange?.(md)
+        scheduleCommit(instance)
       },
-      onSelectionUpdate: () => setRev((v) => v + 1),
+      onBlur: flushCommit,
+      onSelectionUpdate: () => setSelectionRev((value) => value + 1),
     })
     setEditor(ed)
   })
 
   onCleanup(() => {
+    flushCommit()
     editor()?.destroy()
+    if (commitTimer !== undefined) window.clearTimeout(commitTimer)
   })
 
   const isActive = (name: string, attrs?: Record<string, unknown>) => {
+    selectionRev()
     const ed = editor()
     if (!ed) return false
     return ed.isActive(name, attrs)
   }
 
-  const cmd = (fn: (chain: ReturnType<NonNullable<ReturnType<typeof editor>>["chain"]>) => void) => () => {
+  const cmd = (fn: (chain: CommandChain) => void) => () => {
     const ed = editor()
     if (!ed) return
     const chain = ed.chain().focus()
@@ -126,7 +157,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
         </ToolbarButton>
         <span class="markdown-editor-toolbar-sep" />
         <ToolbarButton title="Bullet list" active={isActive("bulletList")} onClick={cmd((c) => c.toggleBulletList().run())}>
-          •
+          -
         </ToolbarButton>
         <ToolbarButton title="Ordered list" active={isActive("orderedList")} onClick={cmd((c) => c.toggleOrderedList().run())}>
           1.
@@ -154,7 +185,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
             ed.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
           }}
         >
-          🔗
+          Link
         </ToolbarButton>
         <ToolbarButton
           title="Image"
@@ -166,23 +197,23 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
             ed.chain().focus().setImage({ src: url }).run()
           }}
         >
-          🖼
+          Img
         </ToolbarButton>
         <ToolbarButton
           title="Insert table"
           onClick={cmd((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
         >
-          ⊞
+          Tbl
         </ToolbarButton>
         <span class="markdown-editor-toolbar-sep" />
         <ToolbarButton title="Horizontal rule" onClick={cmd((c) => c.setHorizontalRule().run())}>
-          ―
+          HR
         </ToolbarButton>
         <ToolbarButton title="Undo (Cmd+Z)" onClick={cmd((c) => c.undo().run())}>
-          ↶
+          Undo
         </ToolbarButton>
         <ToolbarButton title="Redo (Cmd+Shift+Z)" onClick={cmd((c) => c.redo().run())}>
-          ↷
+          Redo
         </ToolbarButton>
       </div>
       <div ref={surface} class="markdown-editor-surface" />

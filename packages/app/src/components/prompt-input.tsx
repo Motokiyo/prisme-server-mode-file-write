@@ -16,6 +16,7 @@ import {
 } from "@/context/prompt"
 import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useSync } from "@/context/sync"
 import { useComments } from "@/context/comments"
 import { Button } from "@opencode-ai/ui/button"
@@ -37,7 +38,6 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
-import { MicrophoneButton } from "./prompt-input/microphone"
 import { ACCEPTED_FILE_TYPES } from "./prompt-input/files"
 import {
   canNavigateHistoryAtCursor,
@@ -52,6 +52,7 @@ import { createPromptSubmit, type FollowupDraft } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
+import { MicrophoneButton } from "./prompt-input/microphone"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
 import { promptPlaceholder } from "./prompt-input/placeholder"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
@@ -103,6 +104,7 @@ const NON_EMPTY_TEXT = /[^\s\u200B]/
 
 export const PromptInput: Component<PromptInputProps> = (props) => {
   const sdk = useSDK()
+  const globalSDK = useGlobalSDK()
 
   const sync = useSync()
   const local = useLocal()
@@ -1254,7 +1256,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   }
 
   const [agentsQuery, globalProvidersQuery, providersQuery] = useQueries(() => ({
-    queries: [loadAgentsQuery(sdk.directory), loadProvidersQuery(null), loadProvidersQuery(sdk.directory)],
+    queries: [
+      loadAgentsQuery(sdk.directory, sdk.client),
+      loadProvidersQuery(null, globalSDK.client),
+      loadProvidersQuery(sdk.directory, sdk.client),
+    ],
   }))
 
   const agentsLoading = () => agentsQuery.isLoading
@@ -1324,7 +1330,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           onMouseDown={(e) => {
             const target = e.target
             if (!(target instanceof HTMLElement)) return
-            if (target.closest('[data-action="prompt-attach"], [data-action="prompt-submit"]')) {
+            if (target.closest('[data-action="prompt-attach"], [data-action="prompt-microphone"], [data-action="prompt-submit"]')) {
               return
             }
             editorRef?.focus()
@@ -1442,7 +1448,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   <Icon name="plus" class="size-4.5" />
                 </Button>
               </TooltipKeybind>
-              <MicrophoneButton />
+              <MicrophoneButton
+                disabled={store.mode !== "normal"}
+                onTranscript={(text) => addPart({ type: "text", content: text, start: 0, end: 0 })}
+              />
             </div>
           </div>
         </div>

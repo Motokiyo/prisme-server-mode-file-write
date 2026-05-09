@@ -1,6 +1,6 @@
-import { createMemo, createSignal, Show, onCleanup } from "solid-js"
-import { writeTextFile } from "@tauri-apps/plugin-fs"
+import { createMemo, createSignal, Show, onCleanup, onMount } from "solid-js"
 import { showToast } from "@opencode-ai/ui/toast"
+import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { MarkdownEditor } from "./markdown-editor"
 
@@ -32,6 +32,7 @@ interface SingleEditorProps {
 }
 
 function SingleFileEditor(props: SingleEditorProps) {
+  const platform = usePlatform()
   const [dirty, setDirty] = createSignal(false)
   const [savingState, setSavingState] = createSignal<"idle" | "saving" | "saved" | "error">("idle")
 
@@ -41,7 +42,8 @@ function SingleFileEditor(props: SingleEditorProps) {
   const persist = async (content: string) => {
     setSavingState("saving")
     try {
-      await writeTextFile(props.absolutePath, content)
+      if (!platform.writeTextFile) throw new Error("This platform cannot write files.")
+      await platform.writeTextFile(props.absolutePath, content)
       setSavingState("saved")
       setDirty(false)
     } catch (err) {
@@ -55,6 +57,7 @@ function SingleFileEditor(props: SingleEditorProps) {
   }
 
   const scheduleSave = (content: string) => {
+    if (!props.isMarkdown) return
     latest = content
     setDirty(true)
     if (saveTimer !== undefined) {
@@ -66,11 +69,26 @@ function SingleFileEditor(props: SingleEditorProps) {
     }, 800)
   }
 
-  onCleanup(() => {
+  const flushSave = () => {
+    if (!props.isMarkdown || !dirty()) return
     if (saveTimer !== undefined) {
       window.clearTimeout(saveTimer)
-      void persist(latest)
+      saveTimer = undefined
     }
+    void persist(latest)
+  }
+
+  onMount(() => {
+    window.addEventListener("beforeunload", flushSave)
+  })
+
+  onCleanup(() => {
+    window.removeEventListener("beforeunload", flushSave)
+    if (saveTimer !== undefined) {
+      window.clearTimeout(saveTimer)
+      saveTimer = undefined
+    }
+    if (props.isMarkdown && dirty()) void persist(latest)
   })
 
   const statusLabel = () => {
@@ -100,6 +118,7 @@ function SingleFileEditor(props: SingleEditorProps) {
             }}
             value={props.initialContent}
             onInput={(e) => scheduleSave(e.currentTarget.value)}
+            readonly
             spellcheck={false}
           />
         }

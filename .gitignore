@@ -30,5 +30,10 @@ logs/
 *.bun-build
 tsconfig.tsbuildinfo
 
-# Tauri sidecar binary (copied locally from user's opencode install)
-packages/desktop/src-tauri/sidecars/
+# Local signing material
+Keys Certificates et ID/
+*.p12
+AuthKey_*.p8
+
+# Local code archives
+_archives/

@@ -51,7 +51,7 @@ import {
   shouldFocusTerminalOnKeyDown,
 } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/message-timeline"
-type DiffStyle = "unified" | "split"
+import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { syncSessionModel } from "@/pages/session/session-model-helpers"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
@@ -435,7 +435,7 @@ export default function Page() {
   const isChildSession = createMemo(() => !!info()?.parentID)
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
   const canReview = createMemo(() => !!sync.project)
-  const reviewTab = createMemo(() => false)
+  const reviewTab = createMemo(() => isDesktop())
   const tabState = createSessionTabs({
     tabs,
     pathFromTab: file.pathFromTab,
@@ -1077,8 +1077,91 @@ export default function Page() {
     </div>
   )
 
-  const reviewEmptyText = createMemo(() => "")
-  const reviewPanel = () => null
+  const createGit = (input: { emptyClass: string }) => (
+    <div class={input.emptyClass}>
+      <div class="flex flex-col gap-3">
+        <div class="text-14-medium text-text-strong">{language.t("session.review.noVcs.createGit.title")}</div>
+        <div class="text-14-regular text-text-base max-w-md" style={{ "line-height": "var(--line-height-normal)" }}>
+          {language.t("session.review.noVcs.createGit.description")}
+        </div>
+      </div>
+      <Button size="large" disabled={gitMutation.isPending} onClick={initGit}>
+        {gitMutation.isPending
+          ? language.t("session.review.noVcs.createGit.actionLoading")
+          : language.t("session.review.noVcs.createGit.action")}
+      </Button>
+    </div>
+  )
+
+  const reviewEmptyText = createMemo(() => {
+    if (store.changes === "git") return language.t("session.review.noUncommittedChanges")
+    if (store.changes === "branch") return language.t("session.review.noBranchChanges")
+    return language.t("session.review.noChanges")
+  })
+
+  const reviewEmpty = (input: { loadingClass: string; emptyClass: string }) => {
+    if (store.changes === "git" || store.changes === "branch") {
+      if (!reviewReady()) return <div class={input.loadingClass}>{language.t("session.review.loadingChanges")}</div>
+      return empty(reviewEmptyText())
+    }
+
+    if (store.changes === "turn") {
+      if (nogit()) return createGit(input)
+      return empty(reviewEmptyText())
+    }
+
+    return (
+      <div class={input.emptyClass}>
+        <div class="text-14-regular text-text-weak max-w-56">{reviewEmptyText()}</div>
+      </div>
+    )
+  }
+
+  const reviewContent = (input: {
+    diffStyle: DiffStyle
+    onDiffStyleChange?: (style: DiffStyle) => void
+    classes?: SessionReviewTabProps["classes"]
+    loadingClass: string
+    emptyClass: string
+  }) => (
+    <Show when={!store.deferRender}>
+      <SessionReviewTab
+        title={changesTitle()}
+        empty={reviewEmpty(input)}
+        diffs={reviewDiffs}
+        view={view}
+        diffStyle={input.diffStyle}
+        onDiffStyleChange={input.onDiffStyleChange}
+        onScrollRef={(el) => setTree("reviewScroll", el)}
+        focusedFile={tree.activeDiff}
+        onLineComment={(comment) => addCommentToContext({ ...comment, origin: "review" })}
+        onLineCommentUpdate={updateCommentInContext}
+        onLineCommentDelete={removeCommentFromContext}
+        lineCommentActions={reviewCommentActions()}
+        commentMentions={{
+          items: file.searchFilesAndDirectories,
+        }}
+        comments={comments.all()}
+        focusedComment={comments.focus()}
+        onFocusedCommentChange={comments.setFocus}
+        onViewFile={openReviewFile}
+        classes={input.classes}
+      />
+    </Show>
+  )
+
+  const reviewPanel = () => (
+    <div class="flex flex-col h-full overflow-hidden bg-background-stronger contain-strict">
+      <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
+        {reviewContent({
+          diffStyle: layout.review.diffStyle(),
+          onDiffStyleChange: layout.review.setDiffStyle,
+          loadingClass: "px-6 py-4 text-text-weak",
+          emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+        })}
+      </div>
+    </div>
+  )
 
   createEffect(
     on(
@@ -1756,7 +1839,16 @@ export default function Page() {
                 <Show when={messagesReady()}>
                   <MessageTimeline
                     mobileChanges={mobileChanges()}
-                    mobileFallback={null}
+                    mobileFallback={reviewContent({
+                      diffStyle: "unified",
+                      classes: {
+                        root: "pb-8",
+                        header: "px-4",
+                        container: "px-4",
+                      },
+                      loadingClass: "px-4 py-4 text-text-weak",
+                      emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+                    })}
                     actions={actions}
                     scroll={ui.scroll}
                     onResumeScroll={resumeScroll}
