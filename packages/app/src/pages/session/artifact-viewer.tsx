@@ -637,14 +637,16 @@ export function ArtifactViewer(props: { path: string }) {
 
   return (
     <div class="artifact-viewer">
-      <ArtifactHeader
-        path={path()}
-        kind={kind()}
-        content={content()}
-        loading={state()?.loading}
-        controls={zoomControls()}
-        onReload={reload}
-      />
+      <Show when={kind() !== "markdown"}>
+        <ArtifactHeader
+          path={path()}
+          kind={kind()}
+          content={content()}
+          loading={state()?.loading}
+          controls={zoomControls()}
+          onReload={reload}
+        />
+      </Show>
       <div class="artifact-body">
         <Switch>
           <Match when={state()?.loading && !content()}>
