@@ -77,6 +77,7 @@ const names = [
   "layout-right-full",
   "square-arrow-top-right",
   "open-file",
+  "microphone",
   "speech-bubble",
   "comment",
   "folder-add-left",

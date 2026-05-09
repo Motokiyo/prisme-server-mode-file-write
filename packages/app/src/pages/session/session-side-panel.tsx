@@ -2,7 +2,9 @@ import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, type JSX
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Tabs } from "@opencode-ai/ui/tabs"
+import { Button } from "@opencode-ai/ui/button"
 import { IconButton } from "@opencode-ai/ui/icon-button"
+import { showToast } from "@opencode-ai/ui/toast"
 import { TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Mark } from "@opencode-ai/ui/logo"
@@ -20,6 +22,7 @@ import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
@@ -46,6 +49,7 @@ export function SessionSidePanel(props: {
   const settings = useSettings()
   const sync = useSync()
   const file = useFile()
+  const sdk = useSDK()
   const language = useLanguage()
   const command = useCommand()
   const dialog = useDialog()
@@ -62,7 +66,7 @@ export function SessionSidePanel(props: {
   const reviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const fileOpen = createMemo(() => isDesktop() && shown() && layout.fileTree.opened())
   const open = createMemo(() => reviewOpen() || fileOpen())
-  const reviewTab = createMemo(() => isDesktop())
+  const reviewTab = createMemo(() => false)
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
     if (reviewOpen()) return `calc(100% - ${layout.session.width()}px)`
@@ -130,6 +134,48 @@ export function SessionSidePanel(props: {
     setActive: tabs().setActive,
   })
 
+  const sanitizeNoteName = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return ""
+    const cleaned = trimmed.replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ")
+    return cleaned.endsWith(".md") ? cleaned : `${cleaned}.md`
+  }
+
+  const createNote = async () => {
+    const raw = window.prompt(language.t("notes.create.prompt"))
+    if (!raw) return
+    const filename = sanitizeNoteName(raw)
+    if (!filename) return
+    const dir = sdk.directory
+    if (!dir || !platform.writeTextFile || !platform.pathExists) {
+      showToast({
+        variant: "error",
+        title: "No workspace open",
+        description: "Open a workspace before creating a note.",
+      })
+      return
+    }
+
+    const sep = dir.endsWith("/") || dir.endsWith("\\") ? "" : "/"
+    const absolute = `${dir}${sep}${filename}`
+    try {
+      const already = await platform.pathExists(absolute)
+      if (!already) {
+        const baseName = filename.replace(/\.md$/, "")
+        const body = language.t("notes.create.defaultBody").replace("{{name}}", baseName)
+        await platform.writeTextFile(absolute, body)
+      }
+      view().reviewPanel.open()
+      openTab(file.tab(filename))
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Failed to create note",
+        description: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
   const tabState = createSessionTabs({
     tabs,
     pathFromTab: file.pathFromTab,
@@ -143,11 +189,6 @@ export function SessionSidePanel(props: {
   const activeFileTab = tabState.activeFileTab
 
   const fileTreeTab = () => layout.fileTree.tab()
-
-  const setFileTreeTabValue = (value: string) => {
-    if (value !== "changes" && value !== "all") return
-    layout.fileTree.setTab(value)
-  }
 
   const showAllFiles = () => {
     if (fileTreeTab() !== "changes") return
@@ -313,11 +354,17 @@ export function SessionSidePanel(props: {
                   <Tabs.Content value="empty" class="flex flex-col h-full overflow-hidden contain-strict">
                     <Show when={activeTab() === "empty"}>
                       <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
-                        <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-6">
-                          <Mark class="w-14 opacity-10" />
-                          <div class="text-14-regular text-text-weak max-w-56">
-                            {language.t("session.files.selectToOpen")}
+                        <div class="h-full w-full px-6 flex flex-col items-center justify-center text-center gap-4">
+                          <Mark class="w-14 opacity-20" />
+                          <div class="flex flex-col gap-1.5 max-w-72">
+                            <div class="text-14-medium text-text-base">{language.t("notes.empty.title")}</div>
+                            <div class="text-13-regular text-text-weak">
+                              {language.t("notes.empty.description")}
+                            </div>
                           </div>
+                          <Button size="normal" onClick={() => void createNote()}>
+                            {language.t("notes.empty.create")}
+                          </Button>
                         </div>
                       </div>
                     </Show>
@@ -370,64 +417,20 @@ export function SessionSidePanel(props: {
                 class="h-full flex flex-col overflow-hidden group/filetree"
                 classList={{ "border-l border-border-weaker-base": reviewOpen() }}
               >
-                <Tabs
-                  variant="pill"
-                  value={fileTreeTab()}
-                  onChange={setFileTreeTabValue}
-                  class="h-full"
-                  data-scope="filetree"
-                >
-                  <Tabs.List>
-                    <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
-                      {props.reviewCount()}{" "}
-                      {language.t(
-                        props.reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other",
-                      )}
-                    </Tabs.Trigger>
-                    <Tabs.Trigger value="all" class="flex-1" classes={{ button: "w-full" }}>
-                      {language.t("session.files.all")}
-                    </Tabs.Trigger>
-                  </Tabs.List>
-                  <Tabs.Content value="changes" class="bg-background-stronger px-3 py-0">
-                    <Switch>
-                      <Match when={props.hasReview() || !props.diffsReady()}>
-                        <Show
-                          when={props.diffsReady()}
-                          fallback={
-                            <div class="px-2 py-2 text-12-regular text-text-weak">
-                              {language.t("common.loading")}
-                              {language.t("common.loading.ellipsis")}
-                            </div>
-                          }
-                        >
-                          <FileTree
-                            path=""
-                            class="pt-3"
-                            allowed={diffFiles()}
-                            kinds={kinds()}
-                            draggable={false}
-                            active={props.activeDiff}
-                            onFileClick={(node) => props.focusReviewDiff(node.path)}
-                          />
-                        </Show>
-                      </Match>
-                    </Switch>
-                  </Tabs.Content>
-                  <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
-                    <Switch>
-                      <Match when={nofiles()}>{empty(language.t("session.files.empty"))}</Match>
-                      <Match when={true}>
-                        <FileTree
-                          path=""
-                          class="pt-3"
-                          modified={diffFiles()}
-                          kinds={kinds()}
-                          onFileClick={(node) => openTab(file.tab(node.path))}
-                        />
-                      </Match>
-                    </Switch>
-                  </Tabs.Content>
-                </Tabs>
+                <div class="h-full bg-background-stronger px-3 py-0" data-scope="filetree">
+                  <Switch>
+                    <Match when={nofiles()}>{empty(language.t("session.files.empty"))}</Match>
+                    <Match when={true}>
+                      <FileTree
+                        path=""
+                        class="pt-3"
+                        modified={diffFiles()}
+                        kinds={kinds()}
+                        onFileClick={(node) => openTab(file.tab(node.path))}
+                      />
+                    </Match>
+                  </Switch>
+                </div>
               </div>
               <Show when={fileOpen()}>
                 <div onPointerDown={() => props.size.start()}>

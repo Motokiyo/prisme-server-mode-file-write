@@ -87,6 +87,12 @@ export type Platform = {
 
   /** Read image from clipboard (desktop only) */
   readClipboardImage?(): Promise<File | null>
+
+  /** Write a UTF-8 text file on the local filesystem (desktop only) */
+  writeTextFile?(path: string, content: string): Promise<void>
+
+  /** Check if a local filesystem path exists (desktop only) */
+  pathExists?(path: string): Promise<boolean>
 }
 
 export type DisplayBackend = "auto" | "wayland"

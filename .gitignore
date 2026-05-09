@@ -29,3 +29,11 @@ UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+
+# Local signing material
+Keys Certificates et ID/
+*.p12
+AuthKey_*.p8
+
+# Local code archives
+_archives/

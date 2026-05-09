@@ -4,10 +4,10 @@
   "version": "1.14.39",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://github.com/EliottMeunierFluid/prismeworkspace",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "Prisme",
+    "email": "hello@prisme.ai"
   },
   "scripts": {
     "typecheck": "tsgo -b",

@@ -1966,7 +1966,9 @@ export default function Page() {
         />
       </div>
 
-      <TerminalPanel />
+      <Show when={settings.general.showTerminal()}>
+        <TerminalPanel />
+      </Show>
     </div>
   )
 }

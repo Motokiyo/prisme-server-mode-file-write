@@ -1,5 +1,16 @@
 import windowState from "electron-window-state"
-import { app, BrowserWindow, net, nativeImage, nativeTheme, protocol } from "electron"
+import {
+  app,
+  BrowserWindow,
+  net,
+  nativeImage,
+  nativeTheme,
+  protocol,
+  type MediaAccessPermissionRequest,
+  type PermissionCheckHandlerHandlerDetails,
+  type PermissionRequest,
+  type WebContents,
+} from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
@@ -84,7 +95,7 @@ export function createMainWindow() {
     width: state.width,
     height: state.height,
     show: false,
-    title: "OpenCode",
+    title: "Prisme",
     icon: iconPath(),
     backgroundColor,
     ...(process.platform === "darwin"
@@ -108,7 +119,7 @@ export function createMainWindow() {
     },
   })
 
-  allowClipboardWrite(win)
+  allowRendererPermissions(win)
 
   win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
     const { requestHeaders } = details
@@ -160,7 +171,7 @@ export function createLoadingWindow() {
     },
   })
 
-  allowClipboardWrite(win)
+  allowRendererPermissions(win)
 
   loadWindow(win, "loading.html")
 
@@ -197,19 +208,45 @@ function loadWindow(win: BrowserWindow, html: string) {
   void win.loadURL(`${rendererProtocol}://${rendererHost}/${html}`)
 }
 
-function allowClipboardWrite(win: BrowserWindow) {
+function allowRendererPermissions(win: BrowserWindow) {
   win.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    callback(
-      permission === clipboardWritePermission &&
-        isTrustedRendererUrl(details.requestingUrl) &&
-        webContents.id === win.webContents.id,
-    )
+    if (!isTrustedPermissionSource(win, webContents, details.requestingUrl, mediaSecurityOrigin(details))) {
+      callback(false)
+      return
+    }
+
+    callback(permission === clipboardWritePermission || isAudioCapturePermission(permission, details))
   })
   win.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    if (permission !== clipboardWritePermission) return false
-    if (webContents && webContents.id !== win.webContents.id) return false
-    return isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
+    if (!isTrustedPermissionSource(win, webContents, details.requestingUrl, details.securityOrigin, requestingOrigin)) {
+      return false
+    }
+    return permission === clipboardWritePermission || isAudioCapturePermission(permission, details)
   })
+}
+
+function isTrustedPermissionSource(
+  win: BrowserWindow,
+  webContents: WebContents | null,
+  ...values: Array<string | undefined>
+) {
+  if (webContents && webContents.id !== win.webContents.id) return false
+  return values.some((value) => isTrustedRendererUrl(value))
+}
+
+function mediaSecurityOrigin(details: PermissionRequest | MediaAccessPermissionRequest) {
+  return "securityOrigin" in details ? details.securityOrigin : undefined
+}
+
+function isAudioCapturePermission(
+  permission: string,
+  details: PermissionRequest | MediaAccessPermissionRequest | PermissionCheckHandlerHandlerDetails,
+) {
+  if (permission !== "media") return false
+  if ("mediaTypes" in details && details.mediaTypes) {
+    return details.mediaTypes.includes("audio") && !details.mediaTypes.includes("video")
+  }
+  return "mediaType" in details && details.mediaType === "audio"
 }
 
 function isTrustedRendererUrl(value?: string) {

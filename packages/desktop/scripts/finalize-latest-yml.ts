@@ -105,7 +105,7 @@ if (macX64 || macArm64) {
   const base = macArm64 ?? macX64!
   output["latest-mac.yml"] = serialize({
     version: base.version,
-    files: [...(macArm64?.files ?? []), ...(macX64?.files ?? [])],
+    files: [...(macArm64?.files ?? []), ...(macX64?.files ?? [])].filter((file) => file.url.endsWith(".zip")),
     releaseDate: base.releaseDate,
   })
 }

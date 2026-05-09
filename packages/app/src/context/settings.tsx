@@ -18,6 +18,12 @@ export interface SoundSettings {
   errors: string
 }
 
+export interface VoiceSettings {
+  deepgramApiKey: string
+  language: string
+  model: string
+}
+
 export interface Settings {
   general: {
     autoSave: boolean
@@ -48,6 +54,7 @@ export interface Settings {
   }
   notifications: NotificationSettings
   sounds: SoundSettings
+  voice: VoiceSettings
 }
 
 export const monoDefault = "System Mono"
@@ -143,6 +150,11 @@ const defaultSettings: Settings = {
     permissions: "staplebops-02",
     errorsEnabled: true,
     errors: "nope-03",
+  },
+  voice: {
+    deepgramApiKey: "",
+    language: "fr",
+    model: "nova-3",
   },
 }
 
@@ -325,6 +337,20 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         errors: withFallback(() => store.sounds?.errors, defaultSettings.sounds.errors),
         setErrors(value: string) {
           setStore("sounds", "errors", value)
+        },
+      },
+      voice: {
+        deepgramApiKey: withFallback(() => store.voice?.deepgramApiKey, defaultSettings.voice.deepgramApiKey),
+        setDeepgramApiKey(value: string) {
+          setStore("voice", "deepgramApiKey", value.trim())
+        },
+        language: withFallback(() => store.voice?.language, defaultSettings.voice.language),
+        setLanguage(value: string) {
+          setStore("voice", "language", value.trim() || defaultSettings.voice.language)
+        },
+        model: withFallback(() => store.voice?.model, defaultSettings.voice.model),
+        setModel(value: string) {
+          setStore("voice", "model", value.trim() || defaultSettings.voice.model)
         },
       },
     }

@@ -211,7 +211,7 @@ const createPlatform = (): Platform => {
 
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://opencode.ai/favicon-96x96-v3.png",
+        icon: "favicon-96x96-v3.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()
@@ -266,6 +266,14 @@ const createPlatform = (): Platform => {
         type: "image/png",
       })
     },
+
+    writeTextFile(path: string, content: string) {
+      return window.api.writeTextFile(path, content)
+    },
+
+    pathExists(path: string) {
+      return window.api.pathExists(path)
+    },
   }
 }
 
@@ -306,7 +314,7 @@ render(() => {
     const data = sidecar()
     if (!data) return []
     const server: ServerConnection.Sidecar = {
-      displayName: "Local Server",
+      displayName: "Local Prisme Server",
       type: "sidecar",
       variant: "base",
       http: {

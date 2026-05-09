@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { access, writeFile } from "node:fs/promises"
 import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
@@ -197,6 +198,17 @@ export function registerIpcHandlers(deps: Deps) {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
     setTitlebar(win, theme)
+  })
+  ipcMain.handle("write-text-file", (_event: IpcMainInvokeEvent, path: string, content: string) => {
+    return writeFile(path, content, "utf8")
+  })
+  ipcMain.handle("path-exists", async (_event: IpcMainInvokeEvent, path: string) => {
+    try {
+      await access(path)
+      return true
+    } catch {
+      return false
+    }
   })
 }
 

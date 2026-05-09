@@ -31,6 +31,7 @@ const session = (input: Partial<Session> & Pick<Session, "id" | "directory">) =>
 describe("layout deep links", () => {
   test("parses open-project deep links", () => {
     expect(parseDeepLink("opencode://open-project?directory=/tmp/demo")).toBe("/tmp/demo")
+    expect(parseDeepLink("prisme://open-project?directory=/tmp/demo")).toBe("/tmp/demo")
   })
 
   test("ignores non-project deep links", () => {
@@ -70,6 +71,7 @@ describe("layout deep links", () => {
 
   test("parses new-session deep links with optional prompt", () => {
     expect(parseNewSessionDeepLink("opencode://new-session?directory=/tmp/demo")).toEqual({ directory: "/tmp/demo" })
+    expect(parseNewSessionDeepLink("prisme://new-session?directory=/tmp/demo")).toEqual({ directory: "/tmp/demo" })
     expect(parseNewSessionDeepLink("opencode://new-session?directory=/tmp/demo&prompt=hello%20world")).toEqual({
       directory: "/tmp/demo",
       prompt: "hello world",

@@ -257,6 +257,9 @@ export const SettingsGeneral: Component = () => {
   const mono = () => monoInput(settings.appearance.font())
   const sans = () => sansInput(settings.appearance.uiFont())
   const terminal = () => terminalInput(settings.appearance.terminalFont())
+  const deepgramApiKey = () => settings.voice.deepgramApiKey()
+  const voiceLanguage = () => settings.voice.language()
+  const voiceModel = () => settings.voice.model()
 
   const soundSelectProps = (
     enabled: () => boolean,
@@ -588,6 +591,80 @@ export const SettingsGeneral: Component = () => {
     </div>
   )
 
+  const VoiceSection = () => (
+    <div class="flex flex-col gap-1">
+      <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.voice")}</h3>
+
+      <SettingsList>
+        <SettingsRow
+          title={language.t("settings.general.voice.deepgramKey.title")}
+          description={language.t("settings.general.voice.deepgramKey.description")}
+        >
+          <div class="w-full sm:w-[260px]">
+            <TextField
+              data-action="settings-voice-deepgram-key"
+              label={language.t("settings.general.voice.deepgramKey.title")}
+              hideLabel
+              type="password"
+              value={deepgramApiKey()}
+              onChange={(value) => settings.voice.setDeepgramApiKey(value)}
+              placeholder={language.t("settings.general.voice.deepgramKey.placeholder")}
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
+              class="text-12-regular"
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.voice.language.title")}
+          description={language.t("settings.general.voice.language.description")}
+        >
+          <div class="w-full sm:w-[120px]">
+            <TextField
+              data-action="settings-voice-language"
+              label={language.t("settings.general.voice.language.title")}
+              hideLabel
+              type="text"
+              value={voiceLanguage()}
+              onChange={(value) => settings.voice.setLanguage(value)}
+              placeholder="fr"
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
+              class="text-12-regular"
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
+          title={language.t("settings.general.voice.model.title")}
+          description={language.t("settings.general.voice.model.description")}
+        >
+          <div class="w-full sm:w-[160px]">
+            <TextField
+              data-action="settings-voice-model"
+              label={language.t("settings.general.voice.model.title")}
+              hideLabel
+              type="text"
+              value={voiceModel()}
+              onChange={(value) => settings.voice.setModel(value)}
+              placeholder="nova-3"
+              spellcheck={false}
+              autocorrect="off"
+              autocomplete="off"
+              autocapitalize="off"
+              class="text-12-regular"
+            />
+          </div>
+        </SettingsRow>
+      </SettingsList>
+    </div>
+  )
+
   const NotificationsSection = () => (
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.notifications")}</h3>
@@ -740,6 +817,8 @@ export const SettingsGeneral: Component = () => {
 
       <div class="flex flex-col gap-8 w-full">
         <GeneralSection />
+
+        <VoiceSection />
 
         <AppearanceSection />
 

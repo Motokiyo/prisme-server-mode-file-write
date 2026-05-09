@@ -26,8 +26,17 @@ const channel = (() => {
   return "dev"
 })()
 
+const githubPublish = {
+  provider: "github" as const,
+  owner: "EliottMeunierFluid",
+  repo: "prismeworkspace",
+  channel: channel === "beta" ? "beta" : "latest",
+  releaseType: channel === "beta" ? ("prerelease" as const) : ("release" as const),
+}
+
 const getBase = (): Configuration => ({
-  artifactName: "opencode-desktop-${os}-${arch}.${ext}",
+  artifactName: "prisme-desktop-${os}-${arch}.${ext}",
+  publish: [githubPublish],
   directories: {
     output: "dist",
     buildResources: "resources",
@@ -41,12 +50,15 @@ const getBase = (): Configuration => ({
     },
   ],
   mac: {
-    category: "public.app-category.developer-tools",
+    category: "public.app-category.productivity",
     icon: `resources/icons/icon.icns`,
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
+    extendInfo: {
+      NSMicrophoneUsageDescription: "Prisme uses the microphone to transcribe your voice into chat messages.",
+    },
     notarize: true,
     target: ["dmg", "zip"],
   },
@@ -54,8 +66,8 @@ const getBase = (): Configuration => ({
     sign: true,
   },
   protocols: {
-    name: "OpenCode",
-    schemes: ["opencode"],
+    name: "Prisme",
+    schemes: ["prisme"],
   },
   win: {
     icon: `resources/icons/icon.ico`,
@@ -85,29 +97,27 @@ function getConfig() {
     case "dev": {
       return {
         ...base,
-        appId: "ai.opencode.desktop.dev",
-        productName: "OpenCode Dev",
-        rpm: { packageName: "opencode-dev" },
+        appId: "ai.prisme.desktop.dev",
+        productName: "Prisme Dev",
+        rpm: { packageName: "prisme-dev" },
       }
     }
     case "beta": {
       return {
         ...base,
-        appId: "ai.opencode.desktop.beta",
-        productName: "OpenCode Beta",
-        protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode-beta", channel: "latest" },
-        rpm: { packageName: "opencode-beta" },
+        appId: "ai.prisme.desktop.beta",
+        productName: "Prisme Beta",
+        protocols: { name: "Prisme Beta", schemes: ["prisme"] },
+        rpm: { packageName: "prisme-beta" },
       }
     }
     case "prod": {
       return {
         ...base,
-        appId: "ai.opencode.desktop",
-        productName: "OpenCode",
-        protocols: { name: "OpenCode", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode", channel: "latest" },
-        rpm: { packageName: "opencode" },
+        appId: "ai.prisme.desktop",
+        productName: "Prisme",
+        protocols: { name: "Prisme", schemes: ["prisme"] },
+        rpm: { packageName: "prisme" },
       }
     }
   }
