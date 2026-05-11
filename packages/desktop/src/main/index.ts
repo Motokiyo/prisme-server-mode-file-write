@@ -144,6 +144,7 @@ function setupApp() {
     setDockIcon()
     setupAutoUpdater()
     await initialize()
+    setTimeout(() => void checkForUpdates(false), 30_000)
   })
 }
 
