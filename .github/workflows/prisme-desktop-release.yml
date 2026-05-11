@@ -28,8 +28,35 @@ permissions:
 concurrency: prisme-desktop-release-${{ inputs.channel }}-${{ inputs.version }}
 
 jobs:
+  prepare-release:
+    name: prepare GitHub release
+    if: inputs.publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ inputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          PRERELEASE_FLAG=""
+          if [ "$CHANNEL" = "beta" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Prisme $TAG" $PRERELEASE_FLAG
+          else
+            gh release create "$TAG" --title "Prisme $TAG" --notes "Prisme Desktop $TAG" $PRERELEASE_FLAG
+          fi
+
   build:
     name: build ${{ matrix.name }}
+    needs: [prepare-release]
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -119,7 +146,7 @@ jobs:
 
       - name: Package Electron app
         working-directory: packages/desktop
-        run: npx electron-builder ${{ matrix.package_flag }} --publish never --config electron-builder.config.ts
+        run: npx electron-builder ${{ matrix.package_flag }} --publish ${{ inputs.publish && 'always' || 'never' }} --config electron-builder.config.ts
         env:
           OPENCODE_CHANNEL: ${{ inputs.channel }}
           GH_TOKEN: ${{ github.token }}
@@ -160,75 +187,8 @@ jobs:
             }
           }
 
-      - uses: actions/upload-artifact@v4
+      - if: ${{ !inputs.publish }}
+        uses: actions/upload-artifact@v4
         with:
           name: prisme-desktop-${{ matrix.name }}
           path: packages/desktop/dist/*
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: latest-yml-${{ matrix.target }}
-          path: packages/desktop/dist/latest*.yml
-
-  publish:
-    name: publish release
-    needs: build
-    if: inputs.publish
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-bun
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: prisme-desktop-*
-          path: /tmp/prisme-release
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: latest-yml-*
-          path: /tmp/latest-yml
-
-      - name: Create or update GitHub release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: v${{ inputs.version }}
-          CHANNEL: ${{ inputs.channel }}
-        run: |
-          set -euo pipefail
-          PRERELEASE_FLAG=""
-          if [ "$CHANNEL" = "beta" ]; then
-            PRERELEASE_FLAG="--prerelease"
-          fi
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "Prisme $TAG" $PRERELEASE_FLAG
-          else
-            gh release create "$TAG" --title "Prisme $TAG" --notes "Prisme Desktop $TAG" $PRERELEASE_FLAG
-          fi
-
-      - name: Upload desktop artifacts
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: v${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          find /tmp/prisme-release -type f \
-            \( -name '*.dmg' \
-            -o -name '*.zip' \
-            -o -name '*.exe' \
-            -o -name '*.AppImage' \
-            -o -name '*.deb' \
-            -o -name '*.rpm' \
-            -o -name '*.blockmap' \) \
-            -print0 | xargs -0 gh release upload "$TAG" --clobber
-
-      - name: Upload combined update metadata
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          OPENCODE_VERSION: ${{ inputs.version }}
-          LATEST_YML_DIR: /tmp/latest-yml
-        run: bun packages/desktop/scripts/finalize-latest-yml.ts
