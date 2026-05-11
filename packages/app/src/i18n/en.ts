@@ -457,7 +457,7 @@ export const dict = {
   "toast.project.reloadFailed.title": "Failed to reload {{project}}",
 
   "toast.update.title": "Update available",
-  "toast.update.description": "A new version of OpenCode ({{version}}) is now available to install.",
+  "toast.update.description": "A new version of Prisme ({{version}}) is now available to install.",
   "toast.update.action.installRestart": "Install and restart",
   "toast.update.action.notYet": "Not yet",
 
