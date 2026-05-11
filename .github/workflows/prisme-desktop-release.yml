@@ -216,9 +216,13 @@ jobs:
         run: |
           set -euo pipefail
           find /tmp/prisme-release -type f \
-            ! -name 'latest*.yml' \
-            ! -name 'builder-debug.yml' \
-            ! -name 'builder-effective-config.yaml' \
+            \( -name '*.dmg' \
+            -o -name '*.zip' \
+            -o -name '*.exe' \
+            -o -name '*.AppImage' \
+            -o -name '*.deb' \
+            -o -name '*.rpm' \
+            -o -name '*.blockmap' \) \
             -print0 | xargs -0 gh release upload "$TAG" --clobber
 
       - name: Upload combined update metadata
