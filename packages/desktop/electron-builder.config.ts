@@ -38,6 +38,7 @@ const githubPublish = {
 const getBase = (): Configuration => ({
   artifactName: "prisme-desktop-${os}-${arch}.${ext}",
   publish: [githubPublish],
+  npmRebuild: false,
   directories: {
     output: "dist",
     buildResources: "resources",
