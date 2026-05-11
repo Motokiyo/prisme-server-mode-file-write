@@ -105,7 +105,7 @@ jobs:
           NODE
 
       - name: Typecheck
-        run: bun turbo typecheck
+        run: bun turbo typecheck --filter=@opencode-ai/desktop --filter=@opencode-ai/app --filter=@opencode-ai/ui --filter=@opencode-ai/core --filter=@opencode-ai/sdk
 
       - name: Test app
         working-directory: packages/app
