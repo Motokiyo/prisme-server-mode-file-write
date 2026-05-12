@@ -762,6 +762,55 @@ export const SettingsGeneral: Component = () => {
     </div>
   )
 
+  const SupportSection = () => {
+    const composeBugEmail = () => {
+      const version = platform.version ?? "unknown"
+      const os = platform.os ?? "unknown"
+      const subject = `[Bug] Prisme v${version}`
+      const body = [
+        "Description du problème :",
+        "",
+        "Étapes pour reproduire :",
+        "",
+        "---",
+        `Version : ${version}`,
+        `OS : ${os}`,
+      ].join("\n")
+      const href = `mailto:bug@prisme.one?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+      platform.openLink(href)
+    }
+
+    const openGitHubIssue = () => {
+      platform.openLink("https://github.com/EliottMeunierFluid/prismeworkspace/issues/new")
+    }
+
+    return (
+      <div class="flex flex-col gap-1">
+        <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.support")}</h3>
+
+        <SettingsList>
+          <SettingsRow
+            title={language.t("settings.support.row.bugEmail.title")}
+            description={language.t("settings.support.row.bugEmail.description")}
+          >
+            <Button size="small" variant="secondary" onClick={composeBugEmail}>
+              {language.t("settings.support.row.bugEmail.action")}
+            </Button>
+          </SettingsRow>
+
+          <SettingsRow
+            title={language.t("settings.support.row.bugIssue.title")}
+            description={language.t("settings.support.row.bugIssue.description")}
+          >
+            <Button size="small" variant="secondary" onClick={openGitHubIssue}>
+              {language.t("settings.support.row.bugIssue.action")}
+            </Button>
+          </SettingsRow>
+        </SettingsList>
+      </div>
+    )
+  }
+
   const UpdatesSection = () => (
     <div class="flex flex-col gap-1">
       <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.updates")}</h3>
@@ -827,6 +876,8 @@ export const SettingsGeneral: Component = () => {
         <SoundsSection />
 
         <UpdatesSection />
+
+        <SupportSection />
 
         <Show when={linux()}>
           <div class="flex flex-col gap-1">
