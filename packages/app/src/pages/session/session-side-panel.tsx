@@ -5,7 +5,7 @@ import { Tabs } from "@opencode-ai/ui/tabs"
 import { Button } from "@opencode-ai/ui/button"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { showToast } from "@opencode-ai/ui/toast"
-import { TooltipKeybind } from "@opencode-ai/ui/tooltip"
+import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Mark } from "@opencode-ai/ui/logo"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
@@ -153,29 +153,377 @@ export function SessionSidePanel(props: {
     }
 
     const sep = dir.endsWith("/") || dir.endsWith("\\") ? "" : "/"
-    const baseLabel = language.t("notes.create.defaultName")
-    let filename = sanitizeNoteName(baseLabel)
-    let absolute = `${dir}${sep}${filename}`
-    try {
-      let index = 2
-      while (await platform.pathExists(absolute)) {
-        filename = sanitizeNoteName(`${baseLabel} ${index}`)
-        absolute = `${dir}${sep}${filename}`
-        index += 1
-        if (index > 999) throw new Error("Could not find an available note name")
+
+    const writeNote = async (rawName: string) => {
+      const filename = sanitizeNoteName(rawName)
+      if (!filename) throw new Error(language.t("dialog.note.create.name.label"))
+      const absolute = `${dir}${sep}${filename}`
+      if (await platform.pathExists!(absolute)) {
+        throw new Error(language.t("dialog.note.create.error.exists"))
       }
       const baseName = filename.replace(/\.md$/, "")
       const body = language.t("notes.create.defaultBody").replace("{{name}}", baseName)
-      await platform.writeTextFile(absolute, body)
+      await platform.writeTextFile!(absolute, body)
+      void file.tree.refresh("")
+      void file.tree.expand("")
       view().reviewPanel.open()
       openTab(file.tab(filename))
-    } catch (err) {
+    }
+
+    void import("@/components/dialog-create-note").then((x) => {
+      dialog.show(() => (
+        <x.DialogCreateNote
+          defaultName={language.t("notes.create.defaultName")}
+          onConfirm={async (rawName) => {
+            try {
+              await writeNote(rawName)
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: "Failed to create note",
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
+  }
+
+  const absoluteWorkspacePath = (relative: string) => {
+    const dir = sdk.directory
+    if (!dir) return null
+    const sep = dir.endsWith("/") || dir.endsWith("\\") ? "" : "/"
+    const cleaned = relative.replace(/^[/\\]+/, "")
+    const absolute = `${dir}${sep}${cleaned}`
+    if (!absolute.startsWith(dir)) return null
+    return absolute
+  }
+
+  const parentOf = (relative: string) => {
+    const cleaned = relative.replace(/^[/\\]+/, "").replace(/[/\\]+$/, "")
+    const lastSlash = Math.max(cleaned.lastIndexOf("/"), cleaned.lastIndexOf("\\"))
+    return lastSlash > 0 ? cleaned.slice(0, lastSlash) : ""
+  }
+
+  const refreshTreeAt = (relative: string) => {
+    void file.tree.refresh(parentOf(relative))
+  }
+
+  const renameFile = (node: { path: string; name: string }) => {
+    if (!platform.renameFile || !platform.pathExists) {
       showToast({
         variant: "error",
-        title: "Failed to create note",
-        description: err instanceof Error ? err.message : String(err),
+        title: language.t("toast.file.rename.failed.title"),
+        description: "Rename is not supported on this platform.",
       })
+      return
     }
+    const absolute = absoluteWorkspacePath(node.path)
+    if (!absolute) return
+
+    const lastSlash = Math.max(absolute.lastIndexOf("/"), absolute.lastIndexOf("\\"))
+    const parentDir = lastSlash > 0 ? absolute.slice(0, lastSlash) : absolute
+    const sep = absolute.includes("\\") && !absolute.includes("/") ? "\\" : "/"
+    const ext = (() => {
+      const dot = node.name.lastIndexOf(".")
+      return dot > 0 ? node.name.slice(dot) : ""
+    })()
+
+    void import("@/components/dialog-rename-file").then((x) => {
+      dialog.show(() => (
+        <x.DialogRenameFile
+          currentName={node.name}
+          onConfirm={async (rawName) => {
+            const trimmed = rawName.trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ")
+            const newName = trimmed.includes(".") || !ext ? trimmed : `${trimmed}${ext}`
+            const newAbsolute = `${parentDir}${sep}${newName}`
+            if (newAbsolute === absolute) return
+            try {
+              if (await platform.pathExists!(newAbsolute)) {
+                throw new Error(language.t("dialog.file.rename.error.exists"))
+              }
+              const oldTabId = file.tab(node.path)
+              const parentRelative = parentOf(node.path)
+              const newRelative = parentRelative ? pathJoin(parentRelative, newName) : newName
+              const newTabId = file.tab(newRelative)
+              const currentTabs = tabs().all()
+              const idx = currentTabs.indexOf(oldTabId)
+              const wasOpen = idx !== -1
+              const wasActive = tabs().active() === oldTabId
+
+              if (wasOpen) {
+                try {
+                  tabs().close(oldTabId)
+                } catch {}
+                await new Promise((resolve) => setTimeout(resolve, 200))
+              }
+              await platform.renameFile!(absolute, newAbsolute)
+              refreshTreeAt(node.path)
+              if (wasOpen) {
+                const refreshedTabs = tabs().all().filter((t) => t !== newTabId)
+                const insertIdx = Math.min(idx, refreshedTabs.length)
+                const nextTabs = [...refreshedTabs.slice(0, insertIdx), newTabId, ...refreshedTabs.slice(insertIdx)]
+                tabs().setAll(nextTabs)
+                if (wasActive) tabs().setActive(newTabId)
+              }
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: language.t("toast.file.rename.failed.title"),
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
+  }
+
+  const deleteFile = (node: { path: string; name: string }) => {
+    if (!platform.deleteFile) {
+      showToast({
+        variant: "error",
+        title: language.t("toast.file.delete.failed.title"),
+        description: "Delete is not supported on this platform.",
+      })
+      return
+    }
+    const absolute = absoluteWorkspacePath(node.path)
+    if (!absolute) return
+
+    void import("@/components/dialog-confirm-delete-file").then((x) => {
+      dialog.show(() => (
+        <x.DialogConfirmDeleteFile
+          filename={node.name}
+          kind="file"
+          onConfirm={async () => {
+            try {
+              const tabId = file.tab(node.path)
+              const wasOpen = tabs().all().some((tab) => tab === tabId)
+              if (wasOpen) {
+                try {
+                  tabs().close(tabId)
+                } catch {}
+                await new Promise((resolve) => setTimeout(resolve, 200))
+              }
+              await platform.deleteFile!(absolute)
+              refreshTreeAt(node.path)
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: language.t("toast.file.delete.failed.title"),
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
+  }
+
+  const pathJoin = (base: string, child: string) => {
+    if (!base) return child
+    const sep = base.endsWith("/") || base.endsWith("\\") ? "" : "/"
+    return `${base}${sep}${child}`
+  }
+
+  const sanitizeName = (raw: string) => raw.trim().replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ")
+
+  const createFileAt = (parentRelative: string) => {
+    if (!platform.writeTextFile || !platform.pathExists) return
+    const parentAbsolute = absoluteWorkspacePath(parentRelative)
+    if (parentAbsolute === null) return
+
+    void import("@/components/dialog-create-file").then((x) => {
+      dialog.show(() => (
+        <x.DialogCreateFile
+          defaultName=""
+          onConfirm={async (rawName) => {
+            const filename = sanitizeName(rawName)
+            if (!filename) return
+            const absolute = pathJoin(parentAbsolute, filename)
+            try {
+              if (await platform.pathExists!(absolute)) {
+                throw new Error(language.t("dialog.file.create.error.exists"))
+              }
+              await platform.writeTextFile!(absolute, "")
+              void file.tree.refresh(parentRelative)
+              void file.tree.expand(parentRelative)
+              const relative = parentRelative ? pathJoin(parentRelative, filename) : filename
+              view().reviewPanel.open()
+              openTab(file.tab(relative))
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: language.t("toast.file.create.failed.title"),
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
+  }
+
+  const createDirectoryAt = (parentRelative: string) => {
+    if (!platform.createDirectory || !platform.pathExists) {
+      showToast({
+        variant: "error",
+        title: language.t("toast.directory.create.failed.title"),
+        description: "Create folder is not supported on this platform.",
+      })
+      return
+    }
+    const parentAbsolute = absoluteWorkspacePath(parentRelative)
+    if (parentAbsolute === null) return
+
+    void import("@/components/dialog-create-directory").then((x) => {
+      dialog.show(() => (
+        <x.DialogCreateDirectory
+          defaultName={language.t("dialog.directory.create.defaultName")}
+          onConfirm={async (rawName) => {
+            const dirname = sanitizeName(rawName)
+            if (!dirname) return
+            const absolute = pathJoin(parentAbsolute, dirname)
+            try {
+              if (await platform.pathExists!(absolute)) {
+                throw new Error(language.t("dialog.directory.create.error.exists"))
+              }
+              await platform.createDirectory!(absolute)
+              void file.tree.refresh(parentRelative)
+              void file.tree.expand(parentRelative)
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: language.t("toast.directory.create.failed.title"),
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
+  }
+
+  const renameDirectory = (node: { path: string; name: string }) => {
+    if (!platform.renameFile || !platform.pathExists) {
+      showToast({
+        variant: "error",
+        title: language.t("toast.directory.rename.failed.title"),
+        description: "Rename is not supported on this platform.",
+      })
+      return
+    }
+    const absolute = absoluteWorkspacePath(node.path)
+    if (!absolute) return
+
+    const lastSlash = Math.max(absolute.lastIndexOf("/"), absolute.lastIndexOf("\\"))
+    const parentDir = lastSlash > 0 ? absolute.slice(0, lastSlash) : absolute
+    const sep = absolute.includes("\\") && !absolute.includes("/") ? "\\" : "/"
+
+    void import("@/components/dialog-rename-file").then((x) => {
+      dialog.show(() => (
+        <x.DialogRenameFile
+          currentName={node.name}
+          kind="directory"
+          onConfirm={async (rawName) => {
+            const newName = sanitizeName(rawName)
+            if (!newName) return
+            const newAbsolute = `${parentDir}${sep}${newName}`
+            if (newAbsolute === absolute) return
+            try {
+              if (await platform.pathExists!(newAbsolute)) {
+                throw new Error(language.t("dialog.file.rename.error.exists"))
+              }
+              const dirPrefix = node.path.replace(/[/\\]+$/, "") + "/"
+              const dirPrefixWin = node.path.replace(/[/\\]+$/, "") + "\\"
+              const openTabs = tabs().all()
+              const closedAny = openTabs.some((tabId) => {
+                const filePath = file.pathFromTab(tabId)
+                if (!filePath) return false
+                if (filePath.startsWith(dirPrefix) || filePath.startsWith(dirPrefixWin)) {
+                  try {
+                    tabs().close(tabId)
+                  } catch {}
+                  return true
+                }
+                return false
+              })
+              if (closedAny) {
+                await new Promise((resolve) => setTimeout(resolve, 200))
+              }
+              await platform.renameFile!(absolute, newAbsolute)
+              refreshTreeAt(node.path)
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: language.t("toast.directory.rename.failed.title"),
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
+  }
+
+  const deleteDirectory = (node: { path: string; name: string }) => {
+    if (!platform.deleteDirectory) {
+      showToast({
+        variant: "error",
+        title: language.t("toast.directory.delete.failed.title"),
+        description: "Delete folder is not supported on this platform.",
+      })
+      return
+    }
+    const absolute = absoluteWorkspacePath(node.path)
+    if (!absolute) return
+
+    void import("@/components/dialog-confirm-delete-file").then((x) => {
+      dialog.show(() => (
+        <x.DialogConfirmDeleteFile
+          filename={node.name}
+          kind="directory"
+          onConfirm={async () => {
+            try {
+              const dirPrefix = node.path.replace(/[/\\]+$/, "") + "/"
+              const dirPrefixWin = node.path.replace(/[/\\]+$/, "") + "\\"
+              const openTabs = tabs().all()
+              const closedAny = openTabs.some((tabId) => {
+                const filePath = file.pathFromTab(tabId)
+                if (!filePath) return false
+                if (filePath.startsWith(dirPrefix) || filePath.startsWith(dirPrefixWin)) {
+                  try {
+                    tabs().close(tabId)
+                  } catch {}
+                  return true
+                }
+                return false
+              })
+              if (closedAny) {
+                await new Promise((resolve) => setTimeout(resolve, 200))
+              }
+              await platform.deleteDirectory!(absolute)
+              refreshTreeAt(node.path)
+            } catch (err) {
+              showToast({
+                variant: "error",
+                title: language.t("toast.directory.delete.failed.title"),
+                description: err instanceof Error ? err.message : String(err),
+              })
+              throw err
+            }
+          }}
+        />
+      ))
+    })
   }
 
   const tabState = createSessionTabs({
@@ -189,6 +537,25 @@ export function SessionSidePanel(props: {
   const openedTabs = tabState.openedTabs
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
+
+  const activeFilePath = createMemo(() => {
+    const tab = activeFileTab()
+    if (!tab) return undefined
+    return file.pathFromTab(tab)
+  })
+
+  createEffect(() => {
+    const path = activeFilePath()
+    if (!path) return
+    const cleaned = path.replace(/^[/\\]+/, "").replace(/[/\\]+$/, "")
+    if (!cleaned) return
+    const segments = cleaned.split(/[/\\]/)
+    let accumulated = ""
+    for (let i = 0; i < segments.length - 1; i++) {
+      accumulated = accumulated ? `${accumulated}/${segments[i]}` : segments[i]
+      void file.tree.expand(accumulated)
+    }
+  })
 
   const fileTreeTab = () => layout.fileTree.tab()
 
@@ -324,7 +691,17 @@ export function SessionSidePanel(props: {
                       <SortableProvider ids={openedTabs()}>
                         <For each={openedTabs()}>{(tab) => <SortableTab tab={tab} onTabClose={tabs().close} />}</For>
                       </SortableProvider>
-                      <div class="bg-background-stronger h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
+                      <div class="bg-background-stronger h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3 gap-1">
+                        <Tooltip value={language.t("notes.empty.create")} class="flex items-center">
+                          <IconButton
+                            icon="new-session"
+                            variant="ghost"
+                            iconSize="normal"
+                            class="!rounded-md"
+                            onClick={() => void createNote()}
+                            aria-label={language.t("notes.empty.create")}
+                          />
+                        </Tooltip>
                         <TooltipKeybind
                           title={language.t("command.file.open")}
                           keybind={command.keybind("file.open")}
@@ -426,9 +803,18 @@ export function SessionSidePanel(props: {
                       <FileTree
                         path=""
                         class="pt-3"
+                        active={activeFilePath()}
                         modified={diffFiles()}
                         kinds={kinds()}
                         onFileClick={(node) => openTab(file.tab(node.path))}
+                        onFileRename={(node) => void renameFile(node)}
+                        onFileDelete={(node) => void deleteFile(node)}
+                        onDirectoryRename={(node) => void renameDirectory(node)}
+                        onDirectoryDelete={(node) => void deleteDirectory(node)}
+                        onDirectoryCreateFile={(node) => createFileAt(node.path)}
+                        onDirectoryCreateSubdirectory={(node) => createDirectoryAt(node.path)}
+                        onRootCreateFile={() => createFileAt("")}
+                        onRootCreateDirectory={() => createDirectoryAt("")}
                       />
                     </Match>
                   </Switch>

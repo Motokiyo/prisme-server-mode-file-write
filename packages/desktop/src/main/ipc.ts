@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { access, writeFile } from "node:fs/promises"
+import { access, mkdir, rename, rm, unlink, writeFile } from "node:fs/promises"
 import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
@@ -209,6 +209,18 @@ export function registerIpcHandlers(deps: Deps) {
     } catch {
       return false
     }
+  })
+  ipcMain.handle("rename-file", (_event: IpcMainInvokeEvent, oldPath: string, newPath: string) => {
+    return rename(oldPath, newPath)
+  })
+  ipcMain.handle("delete-file", (_event: IpcMainInvokeEvent, path: string) => {
+    return unlink(path)
+  })
+  ipcMain.handle("create-directory", (_event: IpcMainInvokeEvent, path: string) => {
+    return mkdir(path, { recursive: true }).then(() => undefined)
+  })
+  ipcMain.handle("delete-directory", (_event: IpcMainInvokeEvent, path: string) => {
+    return rm(path, { recursive: true, force: true })
   })
 }
 

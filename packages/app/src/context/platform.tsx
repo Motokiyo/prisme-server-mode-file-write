@@ -93,6 +93,18 @@ export type Platform = {
 
   /** Check if a local filesystem path exists (desktop only) */
   pathExists?(path: string): Promise<boolean>
+
+  /** Rename or move a local filesystem path (desktop only) */
+  renameFile?(oldPath: string, newPath: string): Promise<void>
+
+  /** Delete a local file (desktop only) */
+  deleteFile?(path: string): Promise<void>
+
+  /** Create a local directory recursively (desktop only) */
+  createDirectory?(path: string): Promise<void>
+
+  /** Delete a local directory recursively (desktop only) */
+  deleteDirectory?(path: string): Promise<void>
 }
 
 export type DisplayBackend = "auto" | "wayland"

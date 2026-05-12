@@ -274,6 +274,22 @@ const createPlatform = (): Platform => {
     pathExists(path: string) {
       return window.api.pathExists(path)
     },
+
+    renameFile(oldPath: string, newPath: string) {
+      return window.api.renameFile(oldPath, newPath)
+    },
+
+    deleteFile(path: string) {
+      return window.api.deleteFile(path)
+    },
+
+    createDirectory(path: string) {
+      return window.api.createDirectory(path)
+    },
+
+    deleteDirectory(path: string) {
+      return window.api.deleteDirectory(path)
+    },
   }
 }
 
