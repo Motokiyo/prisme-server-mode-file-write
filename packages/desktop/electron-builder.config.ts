@@ -89,6 +89,11 @@ const getBase = (): Configuration => ({
     icon: `resources/icons`,
     category: "Development",
     target: ["AppImage", "deb", "rpm"],
+    desktop: {
+      entry: {
+        StartupWMClass: "Prisme",
+      },
+    },
   },
 })
 
@@ -101,6 +106,7 @@ function getConfig() {
         ...base,
         appId: "ai.prisme.desktop.dev",
         productName: "Prisme Dev",
+        linux: { ...base.linux, executableName: "prisme-dev" },
         rpm: { packageName: "prisme-dev" },
       }
     }
@@ -110,6 +116,7 @@ function getConfig() {
         appId: "ai.prisme.desktop.beta",
         productName: "Prisme Beta",
         protocols: { name: "Prisme Beta", schemes: ["prisme"] },
+        linux: { ...base.linux, executableName: "prisme-beta" },
         rpm: { packageName: "prisme-beta" },
       }
     }
@@ -119,6 +126,7 @@ function getConfig() {
         appId: "ai.prisme.desktop",
         productName: "Prisme",
         protocols: { name: "Prisme", schemes: ["prisme"] },
+        linux: { ...base.linux, executableName: "prisme" },
         rpm: { packageName: "prisme" },
       }
     }
