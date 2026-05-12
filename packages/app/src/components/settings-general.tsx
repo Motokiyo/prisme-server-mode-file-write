@@ -781,7 +781,15 @@ export const SettingsGeneral: Component = () => {
     }
 
     const openGitHubIssue = () => {
-      platform.openLink("https://github.com/EliottMeunierFluid/prismeworkspace/issues/new")
+      const version = platform.version ?? ""
+      const osMap: Record<string, string> = { macos: "macOS", windows: "Windows", linux: "Linux" }
+      const os = platform.os ? (osMap[platform.os] ?? "Other") : ""
+      const params = new URLSearchParams()
+      params.set("template", "prisme-bug.yml")
+      if (version) params.set("version", version)
+      if (os) params.set("os", os)
+      const href = `https://github.com/EliottMeunierFluid/prismeworkspace/issues/new?${params.toString()}`
+      platform.openLink(href)
     }
 
     return (
