@@ -142,10 +142,6 @@ export function SessionSidePanel(props: {
   }
 
   const createNote = async () => {
-    const raw = window.prompt(language.t("notes.create.prompt"))
-    if (!raw) return
-    const filename = sanitizeNoteName(raw)
-    if (!filename) return
     const dir = sdk.directory
     if (!dir || !platform.writeTextFile || !platform.pathExists) {
       showToast({
@@ -157,14 +153,20 @@ export function SessionSidePanel(props: {
     }
 
     const sep = dir.endsWith("/") || dir.endsWith("\\") ? "" : "/"
-    const absolute = `${dir}${sep}${filename}`
+    const baseLabel = language.t("notes.create.defaultName")
+    let filename = sanitizeNoteName(baseLabel)
+    let absolute = `${dir}${sep}${filename}`
     try {
-      const already = await platform.pathExists(absolute)
-      if (!already) {
-        const baseName = filename.replace(/\.md$/, "")
-        const body = language.t("notes.create.defaultBody").replace("{{name}}", baseName)
-        await platform.writeTextFile(absolute, body)
+      let index = 2
+      while (await platform.pathExists(absolute)) {
+        filename = sanitizeNoteName(`${baseLabel} ${index}`)
+        absolute = `${dir}${sep}${filename}`
+        index += 1
+        if (index > 999) throw new Error("Could not find an available note name")
       }
+      const baseName = filename.replace(/\.md$/, "")
+      const body = language.t("notes.create.defaultBody").replace("{{name}}", baseName)
+      await platform.writeTextFile(absolute, body)
       view().reviewPanel.open()
       openTab(file.tab(filename))
     } catch (err) {

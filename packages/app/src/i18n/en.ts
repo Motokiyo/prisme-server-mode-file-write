@@ -549,6 +549,7 @@ export const dict = {
   "notes.empty.description": "Choose a file from the explorer or create a Markdown note.",
   "notes.empty.create": "Create note",
   "notes.create.prompt": "Note name",
+  "notes.create.defaultName": "Untitled note",
   "notes.create.defaultBody": "# {{name}}\n\n",
   "session.files.binaryContent": "Binary file (content cannot be displayed)",
 
