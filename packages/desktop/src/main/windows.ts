@@ -95,7 +95,7 @@ export function createMainWindow() {
     width: state.width,
     height: state.height,
     show: false,
-    title: "Prisme2",
+    title: "Prisme",
     icon: iconPath(),
     backgroundColor,
     ...(process.platform === "darwin"

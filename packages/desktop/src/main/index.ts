@@ -144,7 +144,6 @@ function setupApp() {
     setDockIcon()
     setupAutoUpdater()
     await initialize()
-    setTimeout(() => void checkForUpdates(false), 30_000)
   })
 }
 
@@ -471,21 +470,7 @@ async function checkForUpdates(alertOnFail: boolean) {
     return
   }
 
-  const response = await dialog.showMessageBox({
-    type: "info",
-    message: `Update ${result.version ?? ""} downloaded. Restart now?`,
-    title: "Update Ready",
-    buttons: ["Restart", "Later"],
-    defaultId: 0,
-    cancelId: 1,
-  })
-  logger.log("update prompt response", {
-    version: result.version ?? null,
-    restartNow: response.response === 0,
-  })
-  if (response.response === 0) {
-    await installUpdate()
-  }
+  logger.log("update ready, delegated to renderer toast", { version: result.version ?? null })
 }
 
 function delay(ms: number) {
