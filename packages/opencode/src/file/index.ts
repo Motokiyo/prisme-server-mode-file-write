@@ -397,13 +397,14 @@ async function writeMarkdownExisting(root: string, input: WriteInput) {
   if (!isWithin(rootReal, full)) throw new WriteError(403, "Path escapes workspace")
   await assertNoSymlinkSegments(rootReal, file)
 
-  const before = await fileMeta(full)
-  if (before.etag !== input.etag) throw new WriteError(409, "File changed since it was read")
+  // Read the target once to both check the etag and capture its permission bits.
+  const [info, currentBytes] = await Promise.all([stat(full), Bun.file(full).bytes()])
+  if (etag(currentBytes) !== input.etag) throw new WriteError(409, "File changed since it was read")
 
-  // Capture the existing file's permission bits so the atomic-rename write below
-  // preserves them. The temp file is created 0o600, so without this a 0o644 .md
-  // would silently become 0o600 after the rename.
-  const targetMode = (await stat(full)).mode & 0o777
+  // Preserve the existing file's permission bits so the atomic-rename write below
+  // does not silently downgrade them. The temp file is created 0o600, so without
+  // this a 0o644 .md would become 0o600 after the rename.
+  const targetMode = info.mode & 0o777
 
   const bytes = Buffer.from(input.content, "utf8")
   if (bytes.length > MAX_WRITE_BYTES) throw new WriteError(413, "File is too large")

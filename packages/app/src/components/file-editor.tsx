@@ -40,10 +40,14 @@ function SingleFileEditor(props: SingleEditorProps) {
   const [dirty, setDirty] = createSignal(false)
   const [savingState, setSavingState] = createSignal<"idle" | "saving" | "saved" | "error">("idle")
 
+  // The file can be saved either through the desktop bridge or, for plain .md, the
+  // server write route.
+  const canSave = createMemo(() => Boolean(platform.writeTextFile) || props.isServerWritable)
+
   // A markdown variant the server cannot write (.mdx/.markdown) opened in the web
   // app (no desktop file bridge) has no save path. Surface it as read-only so the
   // user does not believe their edits are being persisted.
-  const readOnlyWeb = createMemo(() => props.isMarkdown && !props.isServerWritable && !platform.writeTextFile)
+  const readOnlyWeb = createMemo(() => props.isMarkdown && !canSave())
 
   let saveTimer: number | undefined
   let latest = props.initialContent
@@ -104,7 +108,7 @@ function SingleFileEditor(props: SingleEditorProps) {
 
   const scheduleSave = (content: string) => {
     if (!props.isMarkdown) return
-    if (!platform.writeTextFile && !props.isServerWritable) return
+    if (!canSave()) return
     latest = content
     setDirty(true)
     if (saveTimer !== undefined) {
