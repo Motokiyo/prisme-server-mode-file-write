@@ -340,6 +340,12 @@ const hidden = (item: string) => {
 const MAX_WRITE_BYTES = 1024 * 1024
 const WRITE_EXTENSIONS = new Set(["md"])
 
+// Cap base64-encoded PDF previews so a large document does not blow up the
+// JSON response / mobile client. Above this size the read falls back to the
+// existing empty-binary behaviour and the UI shows its "cannot preview" state.
+const MAX_PDF_PREVIEW_BYTES = 25 * 1024 * 1024
+const isPdfByExtension = (file: string) => ext(file) === "pdf"
+
 function etag(input: Uint8Array | string) {
   return createHash("sha256").update(input).digest("hex")
 }
@@ -671,6 +677,30 @@ export const layer = Layer.effect(
           }
         }
         return { type: "text" as const, content: "" }
+      }
+
+      // PDFs are returned as base64 (same shape as images) so the frontend
+      // PdfPreview can decode them. Size-capped: oversized PDFs fall through to
+      // the empty-binary behaviour below so we don't saturate the mobile client.
+      if (isPdfByExtension(file)) {
+        const exists = yield* appFs.existsSafe(full)
+        if (!exists) return { type: "text" as const, content: "" }
+        const info = yield* Effect.tryPromise(() => stat(full)).pipe(Effect.catch(() => Effect.succeed(undefined)))
+        if (info && info.size > MAX_PDF_PREVIEW_BYTES) {
+          return { type: "binary" as const, content: "", mimeType: "application/pdf" }
+        }
+        const bytes = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
+        if (bytes.length > MAX_PDF_PREVIEW_BYTES) {
+          return { type: "binary" as const, content: "", mimeType: "application/pdf" }
+        }
+        const meta = yield* Effect.tryPromise(() => fileMeta(full)).pipe(Effect.catch(() => Effect.succeed(undefined)))
+        return {
+          type: "text" as const,
+          content: Buffer.from(bytes).toString("base64"),
+          mimeType: "application/pdf",
+          encoding: "base64" as const,
+          ...meta,
+        }
       }
 
       const knownText = isTextByExtension(file) || isTextByName(file)

@@ -108,6 +108,23 @@ describe("file HttpApi", () => {
     expect(await status.json()).toContainEqual({ path: "hello.txt", added: 2, removed: 0, status: "added" })
   })
 
+  test("serves PDF files as base64 for preview", async () => {
+    await using tmp = await tmpdir({ git: true })
+    // A minimal PDF header is enough to exercise the base64 transport path.
+    const pdfBytes = Buffer.from("%PDF-1.4\n%\xff\xff\xff\xff\n1 0 obj\n<< >>\nendobj\n", "latin1")
+    await Bun.write(path.join(tmp.path, "doc.pdf"), pdfBytes)
+
+    const content = await request(FilePaths.content, tmp.path, { path: "doc.pdf" })
+    expect(content.status).toBe(200)
+    const body = await content.json()
+    expect(body.encoding).toBe("base64")
+    expect(body.mimeType).toBe("application/pdf")
+    expect(typeof body.content).toBe("string")
+    expect(body.content.length).toBeGreaterThan(0)
+    // Round-trips back to the original bytes.
+    expect(Buffer.from(body.content, "base64").equals(pdfBytes)).toBe(true)
+  })
+
   test("serves search endpoints", async () => {
     await using tmp = await tmpdir({ git: true })
     await Bun.write(path.join(tmp.path, "hello.txt"), "needle")
