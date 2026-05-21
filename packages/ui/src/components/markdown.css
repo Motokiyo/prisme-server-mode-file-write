@@ -264,3 +264,22 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Inline code that references a workspace file becomes a clickable link.
+   Keeps the existing monospace styling, adds only the clickable affordance. */
+[data-component="markdown"] :not(pre) > code[data-file-ref] {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+[data-component="markdown"] :not(pre) > code[data-file-ref]:hover {
+  text-decoration-style: solid;
+}
+
+[data-component="markdown"] :not(pre) > code[data-file-ref]:focus-visible {
+  outline: 2px solid var(--border-focus, currentColor);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

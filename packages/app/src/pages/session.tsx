@@ -1,5 +1,6 @@
 import type { Project, UserMessage } from "@opencode-ai/sdk/v2"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { FileReferenceProvider, type FileReference } from "@opencode-ai/ui/context/file-reference"
 import { createQuery, skipToken, useMutation, useQueryClient } from "@tanstack/solid-query"
 import {
   batch,
@@ -47,6 +48,7 @@ import { useTerminal } from "@/context/terminal"
 import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
 import {
+  createOpenFileReference,
   createOpenReviewFile,
   createOpenSessionFileTab,
   createSessionTabs,
@@ -1085,6 +1087,33 @@ export default function Page() {
     })
   }
 
+  // Open a workspace-relative file path in the viewer. Reuses the existing,
+  // workspace-scoped open path (openMobileFile) which works on both desktop
+  // (side panel) and mobile (switches to the file tab). `path` is always a
+  // normalized, workspace-relative path — never an absolute path or traversal.
+  const openWorkspaceFile = (path: string) => {
+    showAllFiles()
+    openMobileFile(file.tab(path))
+  }
+
+  // Handler for file references clicked inside a chat message. Detection in the
+  // markdown layer guarantees the reference is workspace-safe (no absolute path,
+  // no `..`); routing/resolution lives in createOpenFileReference and every open
+  // goes through the workspace-scoped open path above.
+  const resolveFileReference = createOpenFileReference({
+    normalize: file.normalize,
+    open: openWorkspaceFile,
+    search: file.searchFiles,
+    notFound: () => showToast({ variant: "error", title: language.t("toast.file.notFound.title") }),
+    showPicker: (query) => {
+      // Multiple matches: let the user pick via the file palette, pre-filtered.
+      void import("@/components/dialog-select-file").then((x) => {
+        dialog.show(() => <x.DialogSelectFile mode="files" initialQuery={query} onOpenFile={showAllFiles} />)
+      })
+    },
+  })
+  const openFileReference = (reference: FileReference) => void resolveFileReference(reference)
+
   // When a file becomes active on mobile, surface it in the file tab.
   createEffect(
     on(
@@ -1860,6 +1889,7 @@ export default function Page() {
   })
 
   return (
+    <FileReferenceProvider onOpen={openFileReference}>
     <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
       {sessionSync() ?? ""}
       <SessionHeader />
@@ -2149,5 +2179,6 @@ export default function Page() {
         <TerminalPanel />
       </Show>
     </div>
+    </FileReferenceProvider>
   )
 }

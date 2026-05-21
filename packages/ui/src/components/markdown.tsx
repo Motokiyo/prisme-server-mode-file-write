@@ -1,5 +1,7 @@
 import { useMarked } from "../context/marked"
 import { useI18n } from "../context/i18n"
+import { useFileReference, type OpenFileReference } from "../context/file-reference"
+import { classifyFileReference } from "./file-reference"
 import DOMPurify from "dompurify"
 import morphdom from "morphdom"
 import { checksum } from "@opencode-ai/core/util/encode"
@@ -175,12 +177,91 @@ function markCodeLinks(root: HTMLDivElement) {
   }
 }
 
-function decorate(root: HTMLDivElement, labels: CopyLabels) {
+// Inline-code spans that look like a workspace file become clickable. The actual
+// open is delegated to the app via the file-reference context; here we only tag
+// the DOM with the classified reference so the delegated click handler can act.
+// Detection is conservative and rejects unsafe paths (absolute / `..`), so a
+// tagged span is always safe to hand to the (workspace-scoped) opener.
+function markFileLinks(root: HTMLDivElement) {
+  const codeNodes = Array.from(root.querySelectorAll(":not(pre) > code"))
+  for (const code of codeNodes) {
+    // Never linkify code that is already an external URL link.
+    if (code.parentElement instanceof HTMLAnchorElement) continue
+
+    const reference = classifyFileReference(code.textContent ?? "")
+    if (!reference) {
+      code.removeAttribute("data-file-ref")
+      code.removeAttribute("data-file-ref-kind")
+      code.removeAttribute("role")
+      code.removeAttribute("tabindex")
+      code.removeAttribute("aria-label")
+      continue
+    }
+
+    code.setAttribute("data-file-ref", reference.value)
+    code.setAttribute("data-file-ref-kind", reference.kind)
+    code.setAttribute("role", "link")
+    code.setAttribute("tabindex", "0")
+    code.setAttribute("aria-label", reference.basename)
+  }
+}
+
+function decorate(root: HTMLDivElement, labels: CopyLabels, fileLinks: boolean) {
   const blocks = Array.from(root.querySelectorAll("pre"))
   for (const block of blocks) {
     ensureCodeWrapper(block, labels)
   }
   markCodeLinks(root)
+  if (fileLinks) markFileLinks(root)
+}
+
+// Delegated click/keyboard handler for file-reference spans. Mirrors the copy
+// button delegation: a single listener on the container survives morphdom
+// updates. Reads the classified reference back off the DOM and hands it to the
+// app-provided opener.
+function setupFileLinks(root: HTMLDivElement, getOpen: () => OpenFileReference | undefined) {
+  const resolve = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return undefined
+    const el = target.closest("[data-file-ref]")
+    if (!(el instanceof HTMLElement)) return undefined
+    const value = el.getAttribute("data-file-ref")
+    const kind = el.getAttribute("data-file-ref-kind")
+    if (!value || (kind !== "path" && kind !== "name")) return undefined
+    // Re-classify to guarantee the value is still safe and well-formed even if
+    // the DOM was tampered with — the opener must never receive an unsafe path.
+    const reference = classifyFileReference(value)
+    if (!reference || reference.kind !== kind) return undefined
+    return reference
+  }
+
+  const handleClick = (event: MouseEvent) => {
+    if (event.defaultPrevented) return
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    const reference = resolve(event.target)
+    if (!reference) return
+    const open = getOpen()
+    if (!open) return
+    event.preventDefault()
+    open(reference)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    const reference = resolve(event.target)
+    if (!reference) return
+    const open = getOpen()
+    if (!open) return
+    event.preventDefault()
+    open(reference)
+  }
+
+  root.addEventListener("click", handleClick)
+  root.addEventListener("keydown", handleKeyDown)
+
+  return () => {
+    root.removeEventListener("click", handleClick)
+    root.removeEventListener("keydown", handleKeyDown)
+  }
 }
 
 function setupCodeCopy(root: HTMLDivElement, getLabels: () => CopyLabels) {
@@ -250,6 +331,7 @@ export function Markdown(
   const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "class", "classList"])
   const marked = useMarked()
   const i18n = useI18n()
+  const openFileReference = useFileReference()
   const [root, setRoot] = createSignal<HTMLDivElement>()
   const [html] = createResource(
     () => ({
@@ -288,6 +370,7 @@ export function Markdown(
   )
 
   let copyCleanup: (() => void) | undefined
+  let fileLinkCleanup: (() => void) | undefined
 
   createEffect(() => {
     const container = root()
@@ -306,7 +389,7 @@ export function Markdown(
     }
     const temp = document.createElement("div")
     temp.innerHTML = content
-    decorate(temp, labels)
+    decorate(temp, labels, !!openFileReference)
 
     morphdom(container, temp, {
       childrenOnly: true,
@@ -330,10 +413,13 @@ export function Markdown(
         copy: i18n.t("ui.message.copy"),
         copied: i18n.t("ui.message.copied"),
       }))
+
+    if (openFileReference && !fileLinkCleanup) fileLinkCleanup = setupFileLinks(container, () => openFileReference)
   })
 
   onCleanup(() => {
     if (copyCleanup) copyCleanup()
+    if (fileLinkCleanup) fileLinkCleanup()
   })
 
   return (

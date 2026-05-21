@@ -2,13 +2,16 @@ import { describe, expect, test } from "bun:test"
 import { createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import {
+  createOpenFileReference,
   createOpenReviewFile,
   createOpenSessionFileTab,
   createSessionTabs,
   focusTerminalById,
   getTabReorderIndex,
+  isTraversalPath,
   shouldFocusTerminalOnKeyDown,
 } from "./helpers"
+import type { FileReference } from "@opencode-ai/ui/context/file-reference"
 
 describe("createOpenReviewFile", () => {
   test("opens and loads selected review file", () => {
@@ -177,5 +180,94 @@ describe("createSessionTabs", () => {
       expect(result.closableTab()).toBeUndefined()
       dispose()
     })
+  })
+})
+
+describe("isTraversalPath", () => {
+  test("flags traversal and empty paths", () => {
+    expect(isTraversalPath("")).toBe(true)
+    expect(isTraversalPath("..")).toBe(true)
+    expect(isTraversalPath("../secret.md")).toBe(true)
+    expect(isTraversalPath("a/../b.md")).toBe(true)
+    expect(isTraversalPath("a/..")).toBe(true)
+  })
+
+  test("allows clean workspace paths", () => {
+    expect(isTraversalPath("notes/x.md")).toBe(false)
+    expect(isTraversalPath("x.md")).toBe(false)
+    expect(isTraversalPath("a/b/c.json")).toBe(false)
+  })
+})
+
+describe("createOpenFileReference", () => {
+  const pathRef = (value: string): FileReference => ({
+    kind: "path",
+    value,
+    basename: value.slice(value.lastIndexOf("/") + 1),
+    extension: value.slice(value.lastIndexOf(".") + 1),
+  })
+  const nameRef = (value: string): FileReference => ({
+    kind: "name",
+    value,
+    basename: value,
+    extension: value.slice(value.lastIndexOf(".") + 1),
+  })
+
+  const harness = (search: (q: string) => Promise<string[]>) => {
+    const calls: string[] = []
+    const open = createOpenFileReference({
+      normalize: (p) => p, // identity: detector already produced a normalized path
+      open: (p) => calls.push(`open:${p}`),
+      search,
+      notFound: () => calls.push("notFound"),
+      showPicker: (q) => calls.push(`picker:${q}`),
+    })
+    return { calls, open }
+  }
+
+  test("opens a relative path directly without searching", async () => {
+    const { calls, open } = harness(async () => {
+      calls.push("search-should-not-run")
+      return []
+    })
+    await open(pathRef("notes/x.md"))
+    expect(calls).toEqual(["open:notes/x.md"])
+  })
+
+  test("reports notFound when a path normalizes to traversal", async () => {
+    const calls: string[] = []
+    const open = createOpenFileReference({
+      normalize: () => "../secret.md", // simulate a normalize that yields traversal
+      open: (p) => calls.push(`open:${p}`),
+      search: async () => [],
+      notFound: () => calls.push("notFound"),
+      showPicker: (q) => calls.push(`picker:${q}`),
+    })
+    await open(pathRef("notes/x.md"))
+    expect(calls).toEqual(["notFound"])
+  })
+
+  test("opens the single match for a bare name", async () => {
+    const { calls, open } = harness(async () => ["docs/un.pdf"])
+    await open(nameRef("un.pdf"))
+    expect(calls).toEqual(["open:docs/un.pdf"])
+  })
+
+  test("opens the picker pre-filtered when multiple matches", async () => {
+    const { calls, open } = harness(async () => ["a/un.pdf", "b/un.pdf"])
+    await open(nameRef("un.pdf"))
+    expect(calls).toEqual(["picker:un.pdf"])
+  })
+
+  test("reports notFound when no matches for a bare name", async () => {
+    const { calls, open } = harness(async () => [])
+    await open(nameRef("missing.pdf"))
+    expect(calls).toEqual(["notFound"])
+  })
+
+  test("ignores empty entries returned by search", async () => {
+    const { calls, open } = harness(async () => ["", "only/real.md"])
+    await open(nameRef("real.md"))
+    expect(calls).toEqual(["open:only/real.md"])
   })
 })

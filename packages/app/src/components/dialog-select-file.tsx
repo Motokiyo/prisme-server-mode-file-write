@@ -3,7 +3,7 @@ import { Dialog } from "@opencode-ai/ui/dialog"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Keybind } from "@opencode-ai/ui/keybind"
-import { List } from "@opencode-ai/ui/list"
+import { List, type ListRef } from "@opencode-ai/ui/list"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { useNavigate } from "@solidjs/router"
@@ -260,7 +260,11 @@ function createSessionEntries(props: {
   return { sessions }
 }
 
-export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFile?: (path: string) => void }) {
+export function DialogSelectFile(props: {
+  mode?: DialogSelectFileMode
+  onOpenFile?: (path: string) => void
+  initialQuery?: string
+}) {
   const command = useCommand()
   const language = useLanguage()
   const layout = useLayout()
@@ -382,9 +386,18 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
     state.cleanup?.()
   })
 
+  const applyInitialQuery = (ref: ListRef) => {
+    const query = props.initialQuery?.trim()
+    if (!query) return
+    // Pre-fill the search so the palette opens scoped to the referenced name,
+    // while staying fully editable by the user.
+    queueMicrotask(() => ref.setFilter(query))
+  }
+
   return (
     <Dialog class="pt-3 pb-0 !max-h-[480px]" transition>
       <List
+        ref={applyInitialQuery}
         search={{
           placeholder: filesOnly()
             ? language.t("session.header.searchFiles")

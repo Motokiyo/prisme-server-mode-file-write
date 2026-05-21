@@ -1,6 +1,7 @@
 import { batch, createMemo, onCleanup, onMount, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import type { FileReference } from "@opencode-ai/ui/context/file-reference"
 import { same } from "@/utils/same"
 
 const emptyTabs: string[] = []
@@ -141,6 +142,55 @@ export const createOpenSessionFileTab = (input: {
     input.loadFile(path)
     input.openReviewPanel()
     input.setActive(next)
+  }
+}
+
+/**
+ * Returns true when a normalized workspace path still escapes the workspace via
+ * `..` traversal. The markdown detector already rejects traversal before a span
+ * becomes clickable; this is a defensive second check before opening.
+ */
+export const isTraversalPath = (path: string) =>
+  !path || path === ".." || path.startsWith("../") || path.includes("/../") || path.endsWith("/..")
+
+/**
+ * Resolves and opens a file reference clicked in a chat message. Pure routing
+ * logic (separated from the component so it can be unit-tested):
+ * - `path` kind: normalize, reject traversal, otherwise open directly.
+ * - `name` kind: search the workspace, then 0 → notFound, 1 → open,
+ *   N → showPicker pre-filtered on the basename.
+ *
+ * Every open goes through the caller-supplied `open`, which MUST reuse the
+ * existing workspace-scoped open path.
+ */
+export const createOpenFileReference = (input: {
+  normalize: (path: string) => string
+  open: (path: string) => void
+  search: (query: string) => Promise<string[]>
+  showPicker: (query: string) => void
+  notFound: () => void
+}) => {
+  return async (reference: FileReference) => {
+    if (reference.kind === "path") {
+      const normalized = input.normalize(reference.value)
+      if (isTraversalPath(normalized)) {
+        input.notFound()
+        return
+      }
+      input.open(normalized)
+      return
+    }
+
+    const matches = (await input.search(reference.basename)).filter(Boolean)
+    if (matches.length === 0) {
+      input.notFound()
+      return
+    }
+    if (matches.length === 1) {
+      input.open(matches[0])
+      return
+    }
+    input.showPicker(reference.basename)
   }
 }
 

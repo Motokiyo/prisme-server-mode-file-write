@@ -385,6 +385,7 @@ export const dict = {
   "toast.model.none.description": "Connectez un fournisseur pour résumer cette session",
   "toast.file.loadFailed.title": "Échec du chargement du fichier",
   "toast.file.listFailed.title": "Échec de la liste des fichiers",
+  "toast.file.notFound.title": "Fichier introuvable",
   "toast.context.noLineSelection.title": "Aucune sélection de lignes",
   "toast.context.noLineSelection.description": "Sélectionnez d'abord une plage de lignes dans un onglet de fichier.",
   "toast.session.share.copyFailed.title": "Échec de la copie de l'URL dans le presse-papiers",
