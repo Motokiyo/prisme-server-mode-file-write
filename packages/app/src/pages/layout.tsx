@@ -2497,7 +2497,7 @@ export default function Layout(props: ParentProps) {
             </div>
           </div>
         </div>
-        {import.meta.env.DEV && <DebugBar />}
+        {import.meta.env.DEV && localStorage.getItem("opencode_debug_bar") === "1" && <DebugBar />}
       </div>
       <Toast.Region />
     </div>
