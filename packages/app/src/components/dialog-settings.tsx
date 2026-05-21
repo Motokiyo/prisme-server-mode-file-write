@@ -2,6 +2,8 @@ import { Component } from "solid-js"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { Tabs } from "@opencode-ai/ui/tabs"
 import { Icon } from "@opencode-ai/ui/icon"
+import { IconButton } from "@opencode-ai/ui/icon-button"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { SettingsGeneral } from "./settings-general"
@@ -12,9 +14,18 @@ import { SettingsModels } from "./settings-models"
 export const DialogSettings: Component = () => {
   const language = useLanguage()
   const platform = usePlatform()
+  const dialog = useDialog()
 
   return (
     <Dialog size="x-large" transition>
+      {/* Bouton fermer visible (indispensable sur mobile : pas d'overlay tappable ni de touche Échap). */}
+      <IconButton
+        icon="close-small"
+        variant="ghost"
+        class="absolute top-2 right-2 z-20"
+        aria-label={language.t("common.close")}
+        onClick={() => dialog.close()}
+      />
       <Tabs orientation="vertical" variant="settings" defaultValue="general" class="h-full settings-dialog">
         <Tabs.List>
           <div class="flex flex-col justify-between h-full w-full">
