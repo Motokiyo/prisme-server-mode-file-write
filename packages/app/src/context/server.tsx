@@ -144,6 +144,38 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       return resolveServerList({ stored: store.list, props: props.servers })
     })
 
+    // Persist credentials supplied at startup (via ?auth_token=) so a later
+    // reload — which arrives without the token in the URL — can re-authenticate
+    // on its own instead of 401'ing. The token is stripped from the URL by
+    // entry.tsx's clearAuthToken; we keep the decoded credentials in the same
+    // localStorage-backed store the server list already uses. This is a
+    // single-user, password-protected, Tailscale-only deployment, so a
+    // persistent "remember me" is the intended behaviour. Stored as a bare
+    // HttpBase (url/username/password) and without the transient `authToken`
+    // flag, matching how a same-url server is reloaded from storage.
+    createEffect(() => {
+      if (!ready()) return
+      for (const conn of props.servers ?? []) {
+        if (conn.type !== "http") continue
+        if (!conn.http.password) continue
+        const key = ServerConnection.key(conn)
+        const stored: ServerConnection.HttpBase = {
+          url: conn.http.url,
+          ...(conn.http.username ? { username: conn.http.username } : {}),
+          password: conn.http.password,
+        }
+        const existing = store.list.findIndex((x) => url(x) === key)
+        if (existing !== -1) {
+          const current = store.list[existing]
+          const currentPassword = typeof current === "string" ? undefined : "type" in current ? current.http.password : current.password
+          if (currentPassword === stored.password) continue
+          setStore("list", existing, stored)
+        } else {
+          setStore("list", store.list.length, stored)
+        }
+      }
+    })
+
     const [state, setState] = createStore({
       active: props.defaultServer,
       healthy: undefined as boolean | undefined,
