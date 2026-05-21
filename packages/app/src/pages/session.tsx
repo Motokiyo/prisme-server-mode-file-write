@@ -1105,9 +1105,13 @@ export default function Page() {
     if (isDesktop()) return
     const dir = sdk.directory
     if (sync.status === "loading") return
-    const refresh = mobileTreeDir !== dir
+    const directoryChanged = mobileTreeDir !== dir
     mobileTreeDir = dir
-    void (refresh ? file.tree.refresh("") : file.tree.list(""))
+    if (directoryChanged) {
+      void file.tree.refresh("")
+    } else {
+      void file.tree.list("")
+    }
   })
 
   const changesTitle = () => {
@@ -2119,8 +2123,8 @@ export default function Page() {
                 active={activeFilePath()}
                 modified={mobileModifiedFiles()}
                 onFileClick={(node) => {
-                  openMobileFile(file.tab(node.path))
                   batch(() => {
+                    openMobileFile(file.tab(node.path))
                     setStore("mobileFiles", false)
                     setStore("mobileTab", "file")
                   })
