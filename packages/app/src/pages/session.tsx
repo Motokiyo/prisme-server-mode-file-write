@@ -24,6 +24,8 @@ import { createStore } from "solid-js/store"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Select } from "@opencode-ai/ui/select"
 import { Tabs } from "@opencode-ai/ui/tabs"
+import { IconButton } from "@opencode-ai/ui/icon-button"
+import { Icon } from "@opencode-ai/ui/icon"
 import { createAutoScroll } from "@opencode-ai/ui/hooks"
 import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
 import { Button } from "@opencode-ai/ui/button"
@@ -31,6 +33,7 @@ import { showToast } from "@opencode-ai/ui/toast"
 import { checksum } from "@opencode-ai/core/util/encode"
 import { useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
+import FileTree from "@/components/file-tree"
 import { useComments } from "@/context/comments"
 import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/session-prefetch"
 import { useGlobalSync } from "@/context/global-sync"
@@ -45,11 +48,13 @@ import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
 import {
   createOpenReviewFile,
+  createOpenSessionFileTab,
   createSessionTabs,
   createSizing,
   focusTerminalById,
   shouldFocusTerminalOnKeyDown,
 } from "@/pages/session/helpers"
+import { FileTabContent } from "@/pages/session/file-tabs"
 import { MessageTimeline } from "@/pages/session/message-timeline"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
@@ -513,7 +518,8 @@ export default function Page() {
 
   const [store, setStore] = createStore({
     messageId: undefined as string | undefined,
-    mobileTab: "session" as "session" | "changes",
+    mobileTab: "session" as "session" | "changes" | "file",
+    mobileFiles: false,
     changes: "git" as ChangeMode,
     newSessionWorktree: "main",
     deferRender: false,
@@ -623,6 +629,7 @@ export default function Page() {
     return turnDiffs()
   }
   const reviewCount = () => reviewDiffs().length
+  const mobileModifiedFiles = createMemo(() => reviewDiffs().map((d) => d.file))
   const hasReview = () => reviewCount() > 0
   const reviewReady = () => {
     if (store.changes === "git" || store.changes === "branch") return !vcsQuery.isPending
@@ -1045,6 +1052,62 @@ export default function Page() {
     openTab: tabs().open,
     setActive: tabs().setActive,
     loadFile: file.load,
+  })
+
+  // --- Mobile (<768px) Files / Edit flow ---
+  const activeFilePath = createMemo(() => {
+    const tab = activeFileTab()
+    if (!tab) return undefined
+    return file.pathFromTab(tab)
+  })
+  const activeFileName = createMemo(() => {
+    const path = activeFilePath()
+    if (!path) return ""
+    const cleaned = path.replace(/[\\/]+$/, "")
+    const slash = Math.max(cleaned.lastIndexOf("/"), cleaned.lastIndexOf("\\"))
+    return slash >= 0 ? cleaned.slice(slash + 1) : cleaned
+  })
+
+  const openMobileFile = createOpenSessionFileTab({
+    normalizeTab,
+    openTab: tabs().open,
+    pathFromTab: file.pathFromTab,
+    loadFile: file.load,
+    openReviewPanel,
+    setActive: tabs().setActive,
+  })
+
+  const closeMobileFile = () => {
+    const tab = activeFileTab()
+    batch(() => {
+      if (tab) tabs().close(tab)
+      setStore("mobileTab", "session")
+    })
+  }
+
+  // When a file becomes active on mobile, surface it in the file tab.
+  createEffect(
+    on(
+      activeFileTab,
+      (active) => {
+        if (isDesktop()) return
+        if (active) setStore("mobileTab", "file")
+        else if (store.mobileTab === "file") setStore("mobileTab", "session")
+      },
+      { defer: true },
+    ),
+  )
+
+  // Keep the mobile Files drawer tree populated while it is open.
+  let mobileTreeDir: string | undefined
+  createEffect(() => {
+    if (!store.mobileFiles) return
+    if (isDesktop()) return
+    const dir = sdk.directory
+    if (sync.status === "loading") return
+    const refresh = mobileTreeDir !== dir
+    mobileTreeDir = dir
+    void (refresh ? file.tree.refresh("") : file.tree.list(""))
   })
 
   const changesTitle = () => {
@@ -1798,28 +1861,61 @@ export default function Page() {
       <SessionHeader />
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
         <Show when={!isDesktop() && !!params.id}>
-          <Tabs value={store.mobileTab} class="h-auto">
-            <Tabs.List>
-              <Tabs.Trigger
-                value="session"
-                class="!w-1/2 !max-w-none"
-                classes={{ button: "w-full" }}
-                onClick={() => setStore("mobileTab", "session")}
-              >
-                {language.t("session.tab.session")}
-              </Tabs.Trigger>
-              <Tabs.Trigger
-                value="changes"
-                class="!w-1/2 !max-w-none !border-r-0"
-                classes={{ button: "w-full" }}
-                onClick={() => setStore("mobileTab", "changes")}
-              >
-                {hasReview()
-                  ? language.t("session.review.filesChanged", { count: reviewCount() })
-                  : language.t("session.review.change.other")}
-              </Tabs.Trigger>
-            </Tabs.List>
-          </Tabs>
+          <div class="flex items-stretch border-b border-border-weaker-base bg-background-base">
+            <Tabs value={store.mobileTab} class="h-auto flex-1 min-w-0">
+              <Tabs.List>
+                <Tabs.Trigger
+                  value="session"
+                  class="flex-1 !max-w-none"
+                  classes={{ button: "w-full" }}
+                  onClick={() => setStore("mobileTab", "session")}
+                >
+                  {language.t("session.tab.session")}
+                </Tabs.Trigger>
+                <Tabs.Trigger
+                  value="changes"
+                  class="flex-1 !max-w-none"
+                  classes={{ button: "w-full" }}
+                  onClick={() => setStore("mobileTab", "changes")}
+                >
+                  {hasReview()
+                    ? language.t("session.review.filesChanged", { count: reviewCount() })
+                    : language.t("session.review.change.other")}
+                </Tabs.Trigger>
+                <Show when={activeFileTab()}>
+                  <Tabs.Trigger
+                    value="file"
+                    class="flex-1 min-w-0 !max-w-none !border-r-0"
+                    classes={{ button: "w-full" }}
+                    onClick={() => setStore("mobileTab", "file")}
+                    closeButton={
+                      <IconButton
+                        icon="close-small"
+                        variant="ghost"
+                        class="h-5 w-5"
+                        onClick={(e: MouseEvent) => {
+                          e.stopPropagation()
+                          closeMobileFile()
+                        }}
+                        aria-label={language.t("common.closeTab")}
+                      />
+                    }
+                  >
+                    <div class="truncate min-w-0">{activeFileName()}</div>
+                  </Tabs.Trigger>
+                </Show>
+              </Tabs.List>
+            </Tabs>
+            <button
+              type="button"
+              class="shrink-0 px-3 flex items-center gap-1.5 text-13-medium text-text-weak border-l border-border-weaker-base active:bg-background-stronger"
+              onClick={() => setStore("mobileFiles", true)}
+              aria-label={language.t("palette.group.files")}
+            >
+              <Icon name="sidebar" size="small" />
+              {language.t("palette.group.files")}
+            </button>
+          </div>
         </Show>
 
         {/* Session panel */}
@@ -1833,7 +1929,28 @@ export default function Page() {
             width: sessionPanelWidth(),
           }}
         >
-          <div class="flex-1 min-h-0 overflow-hidden">
+          <div class="flex-1 min-h-0 overflow-hidden relative">
+            {/*
+              Mobile file editor: stays MOUNTED while a file is active so editing
+              state survives switching to/from the chat tab. Visibility is toggled
+              with CSS (not <Show>) to avoid unmount/remount losing in-flight edits.
+            */}
+            <Show when={!isDesktop() && activeFileTab()} keyed>
+              {(tab) => (
+                <div
+                  class="absolute inset-0 z-10 flex flex-col min-h-0 bg-background-base"
+                  classList={{
+                    "opacity-100 pointer-events-auto": store.mobileTab === "file",
+                    "opacity-0 pointer-events-none invisible": store.mobileTab !== "file",
+                  }}
+                  aria-hidden={store.mobileTab !== "file"}
+                >
+                  <Tabs value={tab} class="flex-1 min-h-0 flex flex-col overflow-hidden">
+                    <FileTabContent tab={tab} />
+                  </Tabs>
+                </div>
+              )}
+            </Show>
             <Switch>
               <Match when={params.id}>
                 <Show when={messagesReady()}>
@@ -1965,6 +2082,54 @@ export default function Page() {
           size={size}
         />
       </div>
+
+      {/* Mobile (<768px) Files drawer */}
+      <Show when={!isDesktop() && !!params.id}>
+        <div class="md:hidden">
+          <div
+            classList={{
+              "fixed inset-0 z-40 bg-black/40 transition-opacity duration-200": true,
+              "opacity-100 pointer-events-auto": store.mobileFiles,
+              "opacity-0 pointer-events-none": !store.mobileFiles,
+            }}
+            onClick={() => setStore("mobileFiles", false)}
+          />
+          <nav
+            aria-label={language.t("palette.group.files")}
+            data-component="session-files-mobile"
+            classList={{
+              "fixed top-0 bottom-0 right-0 z-50 w-full max-w-[360px] flex flex-col overflow-hidden border-l border-border-weaker-base bg-background-stronger transition-transform duration-200 ease-out": true,
+              "translate-x-0": store.mobileFiles,
+              "translate-x-full": !store.mobileFiles,
+            }}
+          >
+            <div class="shrink-0 h-12 px-3 flex items-center justify-between border-b border-border-weaker-base">
+              <div class="text-14-medium text-text-base">{language.t("palette.group.files")}</div>
+              <IconButton
+                icon="close-small"
+                variant="ghost"
+                class="!rounded-md"
+                onClick={() => setStore("mobileFiles", false)}
+                aria-label={language.t("common.closeTab")}
+              />
+            </div>
+            <div class="flex-1 min-h-0 overflow-auto px-3 py-3" data-scope="filetree">
+              <FileTree
+                path=""
+                active={activeFilePath()}
+                modified={mobileModifiedFiles()}
+                onFileClick={(node) => {
+                  openMobileFile(file.tab(node.path))
+                  batch(() => {
+                    setStore("mobileFiles", false)
+                    setStore("mobileTab", "file")
+                  })
+                }}
+              />
+            </div>
+          </nav>
+        </div>
+      </Show>
 
       <Show when={settings.general.showTerminal()}>
         <TerminalPanel />
