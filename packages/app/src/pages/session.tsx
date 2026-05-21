@@ -1864,55 +1864,65 @@ export default function Page() {
       {sessionSync() ?? ""}
       <SessionHeader />
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
-        <Show when={!isDesktop() && !!params.id}>
+        <Show when={!isDesktop()}>
           <div class="flex items-stretch border-b border-border-weaker-base bg-background-base">
-            <Tabs value={store.mobileTab} class="h-auto flex-1 min-w-0">
-              <Tabs.List>
-                <Tabs.Trigger
-                  value="session"
-                  class="flex-1 !max-w-none"
-                  classes={{ button: "w-full" }}
-                  onClick={() => setStore("mobileTab", "session")}
-                >
-                  {language.t("session.tab.session")}
-                </Tabs.Trigger>
-                <Tabs.Trigger
-                  value="changes"
-                  class="flex-1 !max-w-none"
-                  classes={{ button: "w-full" }}
-                  onClick={() => setStore("mobileTab", "changes")}
-                >
-                  {hasReview()
-                    ? language.t("session.review.filesChanged", { count: reviewCount() })
-                    : language.t("session.review.change.other")}
-                </Tabs.Trigger>
-                <Show when={activeFileTab()}>
-                  <Tabs.Trigger
-                    value="file"
-                    class="flex-1 min-w-0 !max-w-none !border-r-0"
-                    classes={{ button: "w-full" }}
-                    onClick={() => setStore("mobileTab", "file")}
-                    closeButton={
-                      <IconButton
-                        icon="close-small"
-                        variant="ghost"
-                        class="h-5 w-5"
-                        onClick={(e: MouseEvent) => {
-                          e.stopPropagation()
-                          closeMobileFile()
-                        }}
-                        aria-label={language.t("common.closeTab")}
-                      />
-                    }
-                  >
-                    <div class="truncate min-w-0">{activeFileName()}</div>
-                  </Tabs.Trigger>
-                </Show>
-              </Tabs.List>
-            </Tabs>
+            {/*
+              The session/changes tabs only make sense with an active session.
+              The file tab and Files button work without one (tabs are scoped by
+              workspace dir, not session id) so they stay reachable on the
+              "Build anything" screen too.
+            */}
+            <Show when={!!params.id || activeFileTab()}>
+              <Tabs value={store.mobileTab} class="h-auto flex-1 min-w-0">
+                <Tabs.List>
+                  <Show when={params.id}>
+                    <Tabs.Trigger
+                      value="session"
+                      class="flex-1 !max-w-none"
+                      classes={{ button: "w-full" }}
+                      onClick={() => setStore("mobileTab", "session")}
+                    >
+                      {language.t("session.tab.session")}
+                    </Tabs.Trigger>
+                    <Tabs.Trigger
+                      value="changes"
+                      class="flex-1 !max-w-none"
+                      classes={{ button: "w-full" }}
+                      onClick={() => setStore("mobileTab", "changes")}
+                    >
+                      {hasReview()
+                        ? language.t("session.review.filesChanged", { count: reviewCount() })
+                        : language.t("session.review.change.other")}
+                    </Tabs.Trigger>
+                  </Show>
+                  <Show when={activeFileTab()}>
+                    <Tabs.Trigger
+                      value="file"
+                      class="flex-1 min-w-0 !max-w-none !border-r-0"
+                      classes={{ button: "w-full" }}
+                      onClick={() => setStore("mobileTab", "file")}
+                      closeButton={
+                        <IconButton
+                          icon="close-small"
+                          variant="ghost"
+                          class="h-5 w-5"
+                          onClick={(e: MouseEvent) => {
+                            e.stopPropagation()
+                            closeMobileFile()
+                          }}
+                          aria-label={language.t("common.closeTab")}
+                        />
+                      }
+                    >
+                      <div class="truncate min-w-0">{activeFileName()}</div>
+                    </Tabs.Trigger>
+                  </Show>
+                </Tabs.List>
+              </Tabs>
+            </Show>
             <button
               type="button"
-              class="shrink-0 px-3 flex items-center gap-1.5 text-13-medium text-text-weak border-l border-border-weaker-base active:bg-background-stronger"
+              class="ml-auto shrink-0 px-3 py-2 flex items-center gap-1.5 text-13-medium text-text-weak border-l border-border-weaker-base active:bg-background-stronger"
               onClick={() => setStore("mobileFiles", true)}
               aria-label={language.t("palette.group.files")}
             >
@@ -2087,8 +2097,8 @@ export default function Page() {
         />
       </div>
 
-      {/* Mobile (<768px) Files drawer */}
-      <Show when={!isDesktop() && !!params.id}>
+      {/* Mobile (<768px) Files drawer — reachable with or without an active session. */}
+      <Show when={!isDesktop()}>
         <div class="md:hidden">
           <div
             classList={{
