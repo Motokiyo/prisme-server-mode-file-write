@@ -4,6 +4,12 @@ import { Ripgrep } from "@/file/ripgrep"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
+import {
+  FileWriteBadRequestError,
+  FileWriteConflictError,
+  FileWriteForbiddenError,
+  FileWriteTooLargeError,
+} from "../groups/file"
 
 export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handlers) =>
   Effect.gen(function* () {
@@ -39,6 +45,27 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       return yield* svc.read(ctx.query.path)
     })
 
+    const write = Effect.fn("FileHttpApi.write")(function* (ctx: { payload: File.WriteInput }) {
+      return yield* svc.write(ctx.payload).pipe(
+        Effect.catch(
+          (
+            error: File.WriteError,
+          ): Effect.Effect<
+            never,
+            | FileWriteBadRequestError
+            | FileWriteForbiddenError
+            | FileWriteConflictError
+            | FileWriteTooLargeError
+          > => {
+            if (error.status === 403) return Effect.fail(new FileWriteForbiddenError({ message: error.message }))
+            if (error.status === 409) return Effect.fail(new FileWriteConflictError({ message: error.message }))
+            if (error.status === 413) return Effect.fail(new FileWriteTooLargeError({ message: error.message }))
+            return Effect.fail(new FileWriteBadRequestError({ message: error.message }))
+          },
+        ),
+      )
+    })
+
     const status = Effect.fn("FileHttpApi.status")(function* () {
       return yield* svc.status()
     })
@@ -49,6 +76,7 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       .handle("findSymbol", findSymbol)
       .handle("list", list)
       .handle("content", content)
+      .handle("write", write)
       .handle("status", status)
   }),
 )

@@ -29,6 +29,31 @@ export const FindSymbolQuery = Schema.Struct({
   query: Schema.String,
 })
 
+// SDK-visible write errors. Built-in HttpApiError.* classes carry no message
+// body and offer no 413 variant, so per the HttpApi error convention
+// (see AGENTS.md / UnsupportedOAuthError) we declare explicit Schema.ErrorClass
+// contracts that surface the domain message and the exact HTTP status — including
+// 413, which keeps the Hono and HttpApi surfaces aligned on "payload too large".
+export class FileWriteBadRequestError extends Schema.ErrorClass<FileWriteBadRequestError>("FileWriteBadRequestError")(
+  { message: Schema.String },
+  { httpApiStatus: 400 },
+) {}
+
+export class FileWriteForbiddenError extends Schema.ErrorClass<FileWriteForbiddenError>("FileWriteForbiddenError")(
+  { message: Schema.String },
+  { httpApiStatus: 403 },
+) {}
+
+export class FileWriteConflictError extends Schema.ErrorClass<FileWriteConflictError>("FileWriteConflictError")(
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
+export class FileWriteTooLargeError extends Schema.ErrorClass<FileWriteTooLargeError>("FileWriteTooLargeError")(
+  { message: Schema.String },
+  { httpApiStatus: 413 },
+) {}
+
 export const FilePaths = {
   findText: "/find",
   findFile: "/find/file",
@@ -90,6 +115,22 @@ export const FileApi = HttpApi.make("file")
             identifier: "file.read",
             summary: "Read file",
             description: "Read the content of a specified file.",
+          }),
+        ),
+        HttpApiEndpoint.put("write", FilePaths.content, {
+          payload: File.WriteInput,
+          success: described(File.WriteResult, "File write result"),
+          error: [
+            FileWriteBadRequestError,
+            FileWriteForbiddenError,
+            FileWriteConflictError,
+            FileWriteTooLargeError,
+          ],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "file.write",
+            summary: "Write file",
+            description: "Write the content of an existing Markdown file in the project directory.",
           }),
         ),
         HttpApiEndpoint.get("status", FilePaths.status, {

@@ -164,6 +164,38 @@ export const FileRoutes = lazy(() =>
           return yield* svc.read(c.req.valid("query").path)
         }),
     )
+    .put(
+      "/file/content",
+      describeRoute({
+        summary: "Write file",
+        description: "Write the content of an existing Markdown file in the project directory.",
+        operationId: "file.write",
+        responses: {
+          200: {
+            description: "File write result",
+            content: {
+              "application/json": {
+                schema: resolver(File.WriteResult.zod),
+              },
+            },
+          },
+        },
+      }),
+      validator("json", File.WriteInput.zod),
+      async (c) => {
+        try {
+          return await jsonRequest("FileRoutes.write", c, function* () {
+            const svc = yield* File.Service
+            return yield* svc.write(c.req.valid("json"))
+          })
+        } catch (error) {
+          if (error instanceof File.WriteError) {
+            return c.json({ name: error.name, message: error.message }, error.status)
+          }
+          throw error
+        }
+      },
+    )
     .get(
       "/file/status",
       describeRoute({

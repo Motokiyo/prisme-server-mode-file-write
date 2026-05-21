@@ -22,6 +22,7 @@ function joinAbsolute(scope: string, relative: string) {
 export interface FileEditorProps {
   path: string
   initialContent: string
+  etag?: string
 }
 
 interface SingleEditorProps {
@@ -29,21 +30,66 @@ interface SingleEditorProps {
   initialContent: string
   absolutePath: string
   isMarkdown: boolean
+  isServerWritable: boolean
+  etag?: string
 }
 
 function SingleFileEditor(props: SingleEditorProps) {
   const platform = usePlatform()
+  const sdk = useSDK()
   const [dirty, setDirty] = createSignal(false)
   const [savingState, setSavingState] = createSignal<"idle" | "saving" | "saved" | "error">("idle")
 
+  // A markdown variant the server cannot write (.mdx/.markdown) opened in the web
+  // app (no desktop file bridge) has no save path. Surface it as read-only so the
+  // user does not believe their edits are being persisted.
+  const readOnlyWeb = createMemo(() => props.isMarkdown && !props.isServerWritable && !platform.writeTextFile)
+
   let saveTimer: number | undefined
   let latest = props.initialContent
+  let latestEtag = props.etag
+
+  const cancelAutosave = () => {
+    if (saveTimer !== undefined) {
+      window.clearTimeout(saveTimer)
+      saveTimer = undefined
+    }
+  }
 
   const persist = async (content: string) => {
     setSavingState("saving")
     try {
-      if (!platform.writeTextFile) throw new Error("This platform cannot write files.")
-      await platform.writeTextFile(props.absolutePath, content)
+      if (platform.writeTextFile) {
+        await platform.writeTextFile(props.absolutePath, content)
+      } else {
+        if (!props.isServerWritable) throw new Error("This file can only be saved from the desktop app.")
+        if (!latestEtag) throw new Error("Reload this file before saving from the web app.")
+        const result = await sdk.client.file.write({
+          fileWriteInput: {
+            path: props.path,
+            content,
+            etag: latestEtag,
+          },
+        })
+        if (result.error) {
+          // A 409 means the file changed on disk since we read it. Retrying the
+          // autosave would just fail again (and could clobber the external edit),
+          // so stop the loop and ask the user to reload.
+          if (result.response.status === 409) {
+            cancelAutosave()
+            setSavingState("error")
+            showToast({
+              variant: "error",
+              title: "File changed externally",
+              description: "File changed externally — reload before saving.",
+            })
+            return
+          }
+          throw new Error("Server rejected this save. Reload the file and try again.")
+        }
+        if (!result.data?.etag) throw new Error("Server did not confirm the saved file version.")
+        latestEtag = result.data.etag
+      }
       setSavingState("saved")
       setDirty(false)
     } catch (err) {
@@ -58,6 +104,7 @@ function SingleFileEditor(props: SingleEditorProps) {
 
   const scheduleSave = (content: string) => {
     if (!props.isMarkdown) return
+    if (!platform.writeTextFile && !props.isServerWritable) return
     latest = content
     setDirty(true)
     if (saveTimer !== undefined) {
@@ -88,10 +135,11 @@ function SingleFileEditor(props: SingleEditorProps) {
       window.clearTimeout(saveTimer)
       saveTimer = undefined
     }
-    if (props.isMarkdown && dirty()) void persist(latest)
+    if (props.isMarkdown && !readOnlyWeb() && dirty()) void persist(latest)
   })
 
   const statusLabel = () => {
+    if (readOnlyWeb()) return "Read-only in web mode"
     if (savingState() === "saving") return "Saving..."
     if (savingState() === "error") return "Save failed"
     if (dirty()) return "Unsaved"
@@ -123,7 +171,11 @@ function SingleFileEditor(props: SingleEditorProps) {
           />
         }
       >
-        <MarkdownEditor initialContent={props.initialContent} onChange={(md) => scheduleSave(md)} />
+        <MarkdownEditor
+          initialContent={props.initialContent}
+          readonly={readOnlyWeb()}
+          onChange={(md) => scheduleSave(md)}
+        />
       </Show>
     </div>
   )
@@ -133,6 +185,7 @@ export function FileEditor(props: FileEditorProps) {
   const sdk = useSDK()
   const ext = createMemo(() => getExtension(props.path))
   const isMarkdown = createMemo(() => MARKDOWN_EXTENSIONS.has(ext()))
+  const isServerWritable = createMemo(() => ext() === "md")
   const absolutePath = createMemo(() => joinAbsolute(sdk.directory, props.path))
 
   return (
@@ -143,6 +196,8 @@ export function FileEditor(props: FileEditorProps) {
           initialContent={props.initialContent}
           absolutePath={absolutePath()}
           isMarkdown={isMarkdown()}
+          isServerWritable={isServerWritable()}
+          etag={props.etag}
         />
       )}
     </Show>

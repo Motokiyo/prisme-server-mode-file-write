@@ -668,7 +668,7 @@ export function ArtifactViewer(props: { path: string }) {
             {(value) => (
               <Switch>
                 <Match when={kind() === "markdown"}>
-                  <FileEditor path={path()} initialContent={value().content ?? ""} />
+                  <FileEditor path={path()} initialContent={value().content ?? ""} etag={value().etag} />
                 </Match>
                 <Match when={kind() === "diagram"}>
                   <MermaidDiagramPreview path={path()} content={value().content ?? ""} />

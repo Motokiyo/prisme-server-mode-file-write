@@ -1452,6 +1452,38 @@ export type FileContent = {
   }
   encoding?: "base64"
   mimeType?: string
+  etag?: string
+  mtimeMs?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  bytes?: number
+}
+
+export type FileWriteInput = {
+  path: string
+  content: string
+  etag: string
+}
+
+export type FileWriteResult = {
+  ok: boolean
+  etag: string
+  mtimeMs: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  bytes: number
+}
+
+export type FileWriteBadRequestError = {
+  message: string
+}
+
+export type FileWriteForbiddenError = {
+  message: string
+}
+
+export type FileWriteConflictError = {
+  message: string
+}
+
+export type FileWriteTooLargeError = {
+  message: string
 }
 
 export type File = {
@@ -3943,6 +3975,46 @@ export type FileReadResponses = {
 }
 
 export type FileReadResponse = FileReadResponses[keyof FileReadResponses]
+
+export type FileWriteData = {
+  body?: FileWriteInput
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/file/content"
+}
+
+export type FileWriteErrors = {
+  /**
+   * FileWriteBadRequestError
+   */
+  400: FileWriteBadRequestError
+  /**
+   * FileWriteForbiddenError
+   */
+  403: FileWriteForbiddenError
+  /**
+   * FileWriteConflictError
+   */
+  409: FileWriteConflictError
+  /**
+   * FileWriteTooLargeError
+   */
+  413: FileWriteTooLargeError
+}
+
+export type FileWriteError = FileWriteErrors[keyof FileWriteErrors]
+
+export type FileWriteResponses = {
+  /**
+   * File write result
+   */
+  200: FileWriteResult
+}
+
+export type FileWriteResponse = FileWriteResponses[keyof FileWriteResponses]
 
 export type FileStatusData = {
   body?: never
