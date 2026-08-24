@@ -146,6 +146,10 @@ jobs:
         run: bun run build
         env:
           OPENCODE_CHANNEL: ${{ inputs.channel }}
+          # Les runners macOS ont 7 Go la ou Linux et Windows en ont 16, et le bundling
+          # depasse le tas par defaut de Node : "JavaScript heap out of memory", SIGABRT.
+          # On releve la limite au lieu de reduire le build.
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Package Electron app
         working-directory: packages/desktop
