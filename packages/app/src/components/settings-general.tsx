@@ -763,7 +763,7 @@ export const SettingsGeneral: Component = () => {
         `OS : ${os}`,
       ].join("\n")
       const href = `mailto:bug@prisme.one?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-      platform.openLink(href)
+      platform.openExternal(href)
     }
 
     const openGitHubIssue = () => {
@@ -775,7 +775,7 @@ export const SettingsGeneral: Component = () => {
       if (version) params.set("version", version)
       if (os) params.set("os", os)
       const href = `https://github.com/EliottMeunierFluid/prismeworkspace/issues/new?${params.toString()}`
-      platform.openLink(href)
+      platform.openExternal(href)
     }
 
     return (

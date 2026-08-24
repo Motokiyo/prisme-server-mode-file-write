@@ -1,5 +1,6 @@
 import * as InstanceState from "@/effect/instance-state"
 import { FileSystem } from "@opencode-ai/core/filesystem"
+import * as FileWrite from "@/file/write"
 import { LocationServiceMap, locationServiceMapLayer } from "@opencode-ai/core/location-services"
 import { Ripgrep } from "@opencode-ai/core/ripgrep"
 import { FSUtil } from "@opencode-ai/core/fs-util"
@@ -119,7 +120,15 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
         ),
         Effect.map(({ item, text }) =>
           Option.isSome(text)
-            ? { type: "text" as const, content: text.value.trim() }
+            ? {
+                type: "text" as const,
+                content: text.value.trim(),
+                // Prisme : etag calcule sur les octets BRUTS du disque, exactement
+                // comme writeMarkdownExisting, sinon l'ecriture optimiste renverrait
+                // toujours 409 a cause du .trim() ci-dessus.
+                etag: FileWrite.hashOf(item.content),
+                bytes: item.content.length,
+              }
             : {
                 type: "binary" as const,
                 content: Buffer.from(item.content).toString("base64"),
@@ -130,17 +139,21 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
       )
     })
 
-    const write = Effect.fn("FileHttpApi.write")(function* (ctx: { payload: File.WriteInput }) {
-      return yield* svc.write(ctx.payload).pipe(
+    const write = Effect.fn("FileHttpApi.write")(function* (ctx: { payload: FileWrite.WriteInput }) {
+      const directory = (yield* InstanceState.context).directory
+      return yield* Effect.tryPromise({
+        try: () => FileWrite.writeMarkdownExisting(directory, ctx.payload),
+        catch: (error) =>
+          error instanceof FileWrite.WriteError
+            ? error
+            : new FileWrite.WriteError(400, error instanceof Error ? error.message : String(error)),
+      }).pipe(
         Effect.catch(
           (
-            error: File.WriteError,
+            error: FileWrite.WriteError,
           ): Effect.Effect<
             never,
-            | FileWriteBadRequestError
-            | FileWriteForbiddenError
-            | FileWriteConflictError
-            | FileWriteTooLargeError
+            FileWriteBadRequestError | FileWriteForbiddenError | FileWriteConflictError | FileWriteTooLargeError
           > => {
             if (error.status === 403) return Effect.fail(new FileWriteForbiddenError({ message: error.message }))
             if (error.status === 409) return Effect.fail(new FileWriteConflictError({ message: error.message }))

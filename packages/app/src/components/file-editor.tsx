@@ -68,7 +68,7 @@ function SingleFileEditor(props: SingleEditorProps) {
       } else {
         if (!props.isServerWritable) throw new Error("This file can only be saved from the desktop app.")
         if (!latestEtag) throw new Error("Reload this file before saving from the web app.")
-        const result = await sdk.client.file.write({
+        const result = await sdk().client.file.write({
           fileWriteInput: {
             path: props.path,
             content,
@@ -190,7 +190,7 @@ export function FileEditor(props: FileEditorProps) {
   const ext = createMemo(() => getExtension(props.path))
   const isMarkdown = createMemo(() => MARKDOWN_EXTENSIONS.has(ext()))
   const isServerWritable = createMemo(() => ext() === "md")
-  const absolutePath = createMemo(() => joinAbsolute(sdk.directory, props.path))
+  const absolutePath = createMemo(() => joinAbsolute(sdk().directory, props.path))
 
   return (
     <Show when={props.path} keyed>

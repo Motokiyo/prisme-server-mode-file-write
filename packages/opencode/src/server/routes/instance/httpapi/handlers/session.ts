@@ -203,7 +203,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
         // session (the .md becomes the only record). The session is removed ONLY if the
         // export actually succeeded, so a vault/read failure can never lose data — in
         // that case we fall back to a plain hide.
-        const messages = yield* session.messages({ sessionID: ctx.params.sessionID })
+        const messages = yield* SessionError.mapStorageNotFound(session.messages({ sessionID: ctx.params.sessionID }))
         const exported = yield* Effect.promise(async () => {
           try {
             await VaultArchive.archiveSessionToVault(current, messages as any)
@@ -214,7 +214,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
           }
         })
         if (exported) {
-          yield* session.remove(ctx.params.sessionID)
+          yield* SessionError.mapStorageNotFound(session.remove(ctx.params.sessionID))
           return current
         }
         yield* session.setArchived({ sessionID: ctx.params.sessionID, time: ctx.payload.time.archived })

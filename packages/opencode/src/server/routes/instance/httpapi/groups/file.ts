@@ -11,6 +11,30 @@ import {
   WorkspaceRoutingQueryFields,
 } from "../middleware/workspace-routing"
 import { described } from "./metadata"
+import * as FileWrite from "@/file/write"
+
+// Erreurs d'ecriture visibles du SDK. Les classes HttpApiError.* natives ne
+// portent pas de message et n'offrent pas de variante 413 : on declare donc des
+// contrats Schema.ErrorClass explicites (convention AGENTS.md / UnsupportedOAuthError).
+export class FileWriteBadRequestError extends Schema.ErrorClass<FileWriteBadRequestError>("FileWriteBadRequestError")(
+  { message: Schema.String },
+  { httpApiStatus: 400 },
+) {}
+
+export class FileWriteForbiddenError extends Schema.ErrorClass<FileWriteForbiddenError>("FileWriteForbiddenError")(
+  { message: Schema.String },
+  { httpApiStatus: 403 },
+) {}
+
+export class FileWriteConflictError extends Schema.ErrorClass<FileWriteConflictError>("FileWriteConflictError")(
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
+export class FileWriteTooLargeError extends Schema.ErrorClass<FileWriteTooLargeError>("FileWriteTooLargeError")(
+  { message: Schema.String },
+  { httpApiStatus: 413 },
+) {}
 
 export const FileQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
@@ -83,6 +107,11 @@ export const LegacyContent = Schema.Struct({
   ),
   encoding: Schema.optional(Schema.Literal("base64")),
   mimeType: Schema.optional(Schema.String),
+  // Prisme : metadonnees necessaires a l'ecriture optimiste cote web/mobile
+  // (l'etag lu est renvoye tel quel lors du PUT et compare avant ecriture).
+  etag: Schema.optional(Schema.String),
+  mtimeMs: Schema.optional(Schema.Number),
+  bytes: Schema.optional(NonNegativeInt),
 }).annotate({ identifier: "FileContent" })
 
 export const LegacyStatus = Schema.Struct({
@@ -153,6 +182,22 @@ export const FileApi = HttpApi.make("file")
             identifier: "file.read",
             summary: "Read file",
             description: "Read the content of a specified file.",
+          }),
+        ),
+        HttpApiEndpoint.put("write", FilePaths.content, {
+          payload: FileWrite.WriteInput,
+          success: described(FileWrite.WriteResult, "File write result"),
+          error: [
+            FileWriteBadRequestError,
+            FileWriteForbiddenError,
+            FileWriteConflictError,
+            FileWriteTooLargeError,
+          ],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "file.write",
+            summary: "Write file",
+            description: "Write the content of an existing Markdown file in the project directory.",
           }),
         ),
         HttpApiEndpoint.get("status", FilePaths.status, {

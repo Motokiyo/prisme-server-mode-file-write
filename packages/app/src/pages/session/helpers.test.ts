@@ -10,7 +10,6 @@ import {
   focusTerminalById,
   getTabReorderIndex,
   isTraversalPath,
-  shouldFocusTerminalOnKeyDown,
   shouldShowFileTree,
 } from "./helpers"
 import type { FileReference } from "@opencode-ai/ui/context/file-reference"

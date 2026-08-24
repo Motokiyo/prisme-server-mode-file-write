@@ -8088,18 +8088,15 @@ export type FileReadResponse = FileReadResponses[keyof FileReadResponses]
 export type FileWriteData = {
   body?: FileWriteInput
   path?: never
-  query?: {
-    directory?: string
-    workspace?: string
-  }
+  query?: never
   url: "/file/content"
 }
 
 export type FileWriteErrors = {
   /**
-   * FileWriteBadRequestError
+   * FileWriteBadRequestError | InvalidRequestError
    */
-  400: FileWriteBadRequestError
+  400: FileWriteBadRequestError | InvalidRequestError
   /**
    * FileWriteForbiddenError
    */

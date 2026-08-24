@@ -1,5 +1,5 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { type Accessor, batch, createMemo } from "solid-js"
+import { batch, createEffect, createMemo, type Accessor } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"

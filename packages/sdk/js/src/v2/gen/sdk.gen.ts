@@ -68,6 +68,9 @@ import type {
   FileReadResponses,
   FileStatusErrors,
   FileStatusResponses,
+  FileWriteErrors,
+  FileWriteInput,
+  FileWriteResponses,
   FindFilesErrors,
   FindFilesResponses,
   FindSymbolsErrors,
@@ -1888,6 +1891,30 @@ export class File extends HeyApiClient {
       url: "/file/content",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Write file
+   *
+   * Write the content of an existing Markdown file in the project directory.
+   */
+  public write<ThrowOnError extends boolean = false>(
+    parameters?: {
+      fileWriteInput?: FileWriteInput
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ key: "fileWriteInput", map: "body" }] }])
+    return (options?.client ?? this.client).put<FileWriteResponses, FileWriteErrors, ThrowOnError>({
+      url: "/file/content",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
