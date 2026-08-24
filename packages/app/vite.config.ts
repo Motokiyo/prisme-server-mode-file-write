@@ -26,6 +26,13 @@ export default defineConfig({
     allowedHosts: true,
     port: 3000,
   },
+  // `vite preview` serves the production build (no HMR client, so no reload on
+  // tab refocus). Host/port are overridden by the systemd ExecStart flags.
+  preview: {
+    host: "0.0.0.0",
+    allowedHosts: true,
+    port: 3000,
+  },
   build: {
     target: "esnext",
     sourcemap: true,

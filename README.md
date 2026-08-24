@@ -8,6 +8,10 @@
   </a>
 </p>
 <p align="center">The open source AI coding agent.</p>
+
+<!-- PRISME — note pour Eliott -->
+> **Prisme self-hosted (openclaw)** — version app **1.14.39**.
+> Déploiement serveur : l'app web est servie par un **build de production** (`vite preview`, plus de serveur Vite *dev*) — voir `PRISME_PATCHES.md` › *Server reload fix*. **Archiver** une session exporte son **transcript complet en `.md`** dans le vault `0 Inbox` **puis supprime la session** de Prisme (suppression uniquement si l'export a réussi) — voir `PRISME_PATCHES.md` › *Session vault archive*. (MAJ 2026-05-22)
 <p align="center">
   <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
   <a href="https://www.npmjs.com/package/opencode-ai"><img alt="npm" src="https://img.shields.io/npm/v/opencode-ai?style=flat-square" /></a>

@@ -103,6 +103,11 @@ const getCurrentUrl = () => {
   if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
   if (import.meta.env.DEV)
     return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
+  // Prisme self-hosted: a production build (served statically, no Vite HMR) can still
+  // reach the opencode backend when the host/port are baked in at build time.
+  // Electron / generic builds leave these unset and keep the same-origin behavior.
+  if (import.meta.env.VITE_OPENCODE_SERVER_HOST)
+    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
   return location.origin
 }
 

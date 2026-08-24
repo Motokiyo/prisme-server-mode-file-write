@@ -38,6 +38,7 @@ import {
   UpdatePayload,
 } from "../groups/session"
 import * as SessionError from "./session-errors"
+import * as VaultArchive from "@/session/vault-archive"
 
 export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", (handlers) =>
   Effect.gen(function* () {
@@ -179,7 +180,27 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
           permission: Permission.merge(current.permission ?? [], ctx.payload.permission),
         })
       }
-      if (ctx.payload.time?.archived !== undefined) {
+      if (ctx.payload.time?.archived !== undefined && current.time?.archived === undefined) {
+        // Prisme: archiving = export the full transcript to the vault, then DELETE the
+        // session (the .md becomes the only record). The session is removed ONLY if the
+        // export actually succeeded, so a vault/read failure can never lose data — in
+        // that case we fall back to a plain hide.
+        const messages = yield* session.messages({ sessionID: ctx.params.sessionID })
+        const exported = yield* Effect.promise(async () => {
+          try {
+            await VaultArchive.archiveSessionToVault(current, messages as any)
+            return true
+          } catch (error) {
+            console.error("PRISME vault archive failed", error)
+            return false
+          }
+        })
+        if (exported) {
+          yield* session.remove(ctx.params.sessionID)
+          return current
+        }
+        yield* session.setArchived({ sessionID: ctx.params.sessionID, time: ctx.payload.time.archived })
+      } else if (ctx.payload.time?.archived !== undefined) {
         yield* session.setArchived({ sessionID: ctx.params.sessionID, time: ctx.payload.time.archived })
       }
       return yield* SessionError.mapStorageNotFound(session.get(ctx.params.sessionID))

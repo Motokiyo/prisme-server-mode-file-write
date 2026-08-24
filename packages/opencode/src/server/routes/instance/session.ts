@@ -27,6 +27,7 @@ import { zodObject } from "@/util/effect-zod"
 import { Bus } from "@/bus"
 import { NamedError } from "@opencode-ai/core/util/error"
 import { jsonRequest, runRequest } from "./trace"
+import * as VaultArchive from "@/session/vault-archive"
 
 const log = Log.create({ service: "server" })
 
@@ -328,7 +329,26 @@ export const SessionRoutes = lazy(() =>
               permission: Permission.merge(current.permission ?? [], updates.permission),
             })
           }
-          if (updates.time?.archived !== undefined) {
+          if (updates.time?.archived !== undefined && current.time?.archived === undefined) {
+            // Prisme: archiving = export the full transcript to the vault, then DELETE
+            // the session. Removed ONLY if the export succeeded (else fall back to a
+            // plain hide), so a vault/read failure can never lose data.
+            const messages = yield* session.messages({ sessionID })
+            const exported = yield* Effect.promise(async () => {
+              try {
+                await VaultArchive.archiveSessionToVault(current, messages as any)
+                return true
+              } catch (error) {
+                console.error("PRISME vault archive failed", error)
+                return false
+              }
+            })
+            if (exported) {
+              yield* session.remove(sessionID)
+              return current
+            }
+            yield* session.setArchived({ sessionID, time: updates.time.archived })
+          } else if (updates.time?.archived !== undefined) {
             yield* session.setArchived({ sessionID, time: updates.time.archived })
           }
 
