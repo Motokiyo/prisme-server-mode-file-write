@@ -1,10 +1,8 @@
 import { useFile } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
 import { Collapsible } from "@opencode-ai/ui/collapsible"
-import { ContextMenu } from "@opencode-ai/ui/context-menu"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { Icon } from "@opencode-ai/ui/icon"
-import { useLanguage } from "@/context/language"
 import {
   createEffect,
   createMemo,
@@ -23,13 +21,13 @@ import type { FileNode } from "@opencode-ai/sdk/v2"
 
 const MAX_DEPTH = 128
 
-function pathToFileUrl(filepath: string): string {
+export function pathToFileUrl(filepath: string): string {
   return `file://${encodeFilePath(filepath)}`
 }
 
-type Kind = "add" | "del" | "mix"
+export type Kind = "add" | "del" | "mix"
 
-type Filter = {
+export type Filter = {
   files: Set<string>
   dirs: Set<string>
 }
@@ -80,7 +78,7 @@ const kindDotColor = (kind: Kind) => {
   return "background-color: var(--icon-diff-modified-base)"
 }
 
-const visibleKind = (node: FileNode, kinds?: ReadonlyMap<string, Kind>, marks?: Set<string>) => {
+export const visibleKind = (node: FileNode, kinds?: ReadonlyMap<string, Kind>, marks?: Set<string>) => {
   const kind = kinds?.get(node.path)
   if (!kind) return
   if (!marks?.has(node.path)) return
@@ -101,7 +99,7 @@ const buildDragImage = (target: HTMLElement) => {
   return image
 }
 
-const withFileDragImage = (event: DragEvent) => {
+export const withFileDragImage = (event: DragEvent) => {
   const image = buildDragImage(event.currentTarget as HTMLElement)
   if (!image) return
   document.body.appendChild(image)
@@ -148,13 +146,13 @@ const FileTreeNode = (
     <Dynamic
       component={local.as ?? "div"}
       classList={{
-        "w-full min-w-0 h-6 flex items-center justify-start gap-x-1.5 rounded-md px-1.5 py-0 text-left hover:bg-surface-raised-base-hover active:bg-surface-base-active transition-colors cursor-pointer": true,
+        "w-full min-w-0 h-6 flex items-center justify-start gap-x-1.5 rounded-md px-1.5 py-0 text-start hover:bg-surface-raised-base-hover active:bg-surface-base-active transition-colors cursor-pointer": true,
         "bg-surface-base-active": local.node.path === local.active,
         ...local.classList,
         [local.class ?? ""]: !!local.class,
         [local.nodeClass ?? ""]: !!local.nodeClass,
       }}
-      style={`padding-left: ${Math.max(0, 8 + local.level * 12 - (local.node.type === "file" ? 24 : 4))}px`}
+      style={`padding-inline-start: ${Math.max(0, 8 + local.level * 12 - (local.node.type === "file" ? 24 : 4))}px`}
       draggable={local.draggable}
       onDragStart={(event: DragEvent) => {
         if (!local.draggable) return
@@ -203,14 +201,7 @@ export default function FileTree(props: {
   kinds?: ReadonlyMap<string, Kind>
   draggable?: boolean
   onFileClick?: (file: FileNode) => void
-  onFileRename?: (file: FileNode) => void
-  onFileDelete?: (file: FileNode) => void
-  onDirectoryRename?: (dir: FileNode) => void
-  onDirectoryDelete?: (dir: FileNode) => void
-  onDirectoryCreateFile?: (dir: FileNode) => void
-  onDirectoryCreateSubdirectory?: (dir: FileNode) => void
-  onRootCreateFile?: () => void
-  onRootCreateDirectory?: () => void
+  onFileDoubleClick?: (file: FileNode) => void
 
   _filter?: Filter
   _marks?: Set<string>
@@ -219,7 +210,6 @@ export default function FileTree(props: {
   _chain?: readonly string[]
 }) {
   const file = useFile()
-  const language = useLanguage()
   const level = props.level ?? 0
   const draggable = () => props.draggable ?? true
 
@@ -394,10 +384,7 @@ export default function FileTree(props: {
     return out
   })
 
-  const isRoot = level === 0
-  const hasRootActions = isRoot && (props.onRootCreateFile || props.onRootCreateDirectory)
-
-  const treeBody = (
+  return (
     <div data-component="filetree" class={`flex flex-col gap-0.5 ${props.class ?? ""}`}>
       <For each={nodes()}>
         {(node) => {
@@ -418,61 +405,19 @@ export default function FileTree(props: {
                   onOpenChange={(open) => (open ? file.tree.expand(node.path) : file.tree.collapse(node.path))}
                 >
                   <Collapsible.Trigger>
-                    {(() => {
-                      const directoryNode = (
-                        <FileTreeNode
-                          node={node}
-                          level={level}
-                          active={props.active}
-                          nodeClass={props.nodeClass}
-                          draggable={draggable()}
-                          kinds={kinds()}
-                          marks={marks()}
-                        >
-                          <div class="size-4 flex items-center justify-center text-icon-weak">
-                            <Icon name={expanded() ? "chevron-down" : "chevron-right"} size="small" />
-                          </div>
-                        </FileTreeNode>
-                      )
-
-                      const hasDirActions =
-                        props.onDirectoryRename ||
-                        props.onDirectoryDelete ||
-                        props.onDirectoryCreateFile ||
-                        props.onDirectoryCreateSubdirectory
-
-                      if (!hasDirActions) return directoryNode
-
-                      return (
-                        <ContextMenu>
-                          <ContextMenu.Trigger as="div">{directoryNode}</ContextMenu.Trigger>
-                          <ContextMenu.Portal>
-                            <ContextMenu.Content>
-                              <Show when={props.onDirectoryCreateFile}>
-                                <ContextMenu.Item onSelect={() => props.onDirectoryCreateFile?.(node)}>
-                                  {language.t("fileTree.action.newFile")}
-                                </ContextMenu.Item>
-                              </Show>
-                              <Show when={props.onDirectoryCreateSubdirectory}>
-                                <ContextMenu.Item onSelect={() => props.onDirectoryCreateSubdirectory?.(node)}>
-                                  {language.t("fileTree.action.newSubDirectory")}
-                                </ContextMenu.Item>
-                              </Show>
-                              <Show when={props.onDirectoryRename}>
-                                <ContextMenu.Item onSelect={() => props.onDirectoryRename?.(node)}>
-                                  {language.t("fileTree.action.rename")}
-                                </ContextMenu.Item>
-                              </Show>
-                              <Show when={props.onDirectoryDelete}>
-                                <ContextMenu.Item onSelect={() => props.onDirectoryDelete?.(node)}>
-                                  {language.t("fileTree.action.delete")}
-                                </ContextMenu.Item>
-                              </Show>
-                            </ContextMenu.Content>
-                          </ContextMenu.Portal>
-                        </ContextMenu>
-                      )
-                    })()}
+                    <FileTreeNode
+                      node={node}
+                      level={level}
+                      active={props.active}
+                      nodeClass={props.nodeClass}
+                      draggable={draggable()}
+                      kinds={kinds()}
+                      marks={marks()}
+                    >
+                      <div class="size-4 flex items-center justify-center text-icon-weak">
+                        <Icon name={expanded() ? "chevron-down" : "chevron-right"} size="small" />
+                      </div>
+                    </FileTreeNode>
                   </Collapsible.Trigger>
                   <Collapsible.Content class="relative pt-0.5">
                     <div
@@ -496,12 +441,7 @@ export default function FileTree(props: {
                         active={props.active}
                         draggable={props.draggable}
                         onFileClick={props.onFileClick}
-                        onFileRename={props.onFileRename}
-                        onFileDelete={props.onFileDelete}
-                        onDirectoryRename={props.onDirectoryRename}
-                        onDirectoryDelete={props.onDirectoryDelete}
-                        onDirectoryCreateFile={props.onDirectoryCreateFile}
-                        onDirectoryCreateSubdirectory={props.onDirectoryCreateSubdirectory}
+                        onFileDoubleClick={props.onFileDoubleClick}
                         _filter={filter()}
                         _marks={marks()}
                         _deeps={deeps()}
@@ -513,106 +453,57 @@ export default function FileTree(props: {
                 </Collapsible>
               </Match>
               <Match when={node.type === "file"}>
-                {(() => {
-                  const button = (
-                    <FileTreeNode
-                      node={node}
-                      level={level}
-                      active={props.active}
-                      nodeClass={props.nodeClass}
-                      draggable={draggable()}
-                      kinds={kinds()}
-                      marks={marks()}
-                      as="button"
-                      type="button"
-                      onClick={() => props.onFileClick?.(node)}
-                    >
-                      <div class="w-4 shrink-0" />
-                      <Switch>
-                        <Match when={node.ignored}>
-                          <FileIcon
-                            node={node}
-                            class="size-4 filetree-icon filetree-icon--mono"
-                            style="color: var(--icon-weak-base)"
-                            mono
-                          />
-                        </Match>
-                        <Match when={active()}>
-                          <FileIcon
-                            node={node}
-                            class="size-4 filetree-icon filetree-icon--mono"
-                            style={kindTextColor(kind()!)}
-                            mono
-                          />
-                        </Match>
-                        <Match when={!node.ignored}>
-                          <span class="filetree-iconpair size-4">
-                            <FileIcon
-                              node={node}
-                              class="size-4 filetree-icon filetree-icon--color opacity-0 group-hover/filetree:opacity-100"
-                            />
-                            <FileIcon
-                              node={node}
-                              class="size-4 filetree-icon filetree-icon--mono group-hover/filetree:opacity-0"
-                              mono
-                            />
-                          </span>
-                        </Match>
-                      </Switch>
-                    </FileTreeNode>
-                  )
-
-                  if (!props.onFileRename && !props.onFileDelete) return button
-
-                  return (
-                    <ContextMenu>
-                      <ContextMenu.Trigger as="div">{button}</ContextMenu.Trigger>
-                      <ContextMenu.Portal>
-                        <ContextMenu.Content>
-                          <Show when={props.onFileRename}>
-                            <ContextMenu.Item onSelect={() => props.onFileRename?.(node)}>
-                              {language.t("fileTree.action.rename")}
-                            </ContextMenu.Item>
-                          </Show>
-                          <Show when={props.onFileDelete}>
-                            <ContextMenu.Item onSelect={() => props.onFileDelete?.(node)}>
-                              {language.t("fileTree.action.delete")}
-                            </ContextMenu.Item>
-                          </Show>
-                        </ContextMenu.Content>
-                      </ContextMenu.Portal>
-                    </ContextMenu>
-                  )
-                })()}
+                <FileTreeNode
+                  node={node}
+                  level={level}
+                  active={props.active}
+                  nodeClass={props.nodeClass}
+                  draggable={draggable()}
+                  kinds={kinds()}
+                  marks={marks()}
+                  as="button"
+                  type="button"
+                  onClick={() => props.onFileClick?.(node)}
+                  onDblClick={() => props.onFileDoubleClick?.(node)}
+                >
+                  <div class="w-4 shrink-0" />
+                  <Switch>
+                    <Match when={node.ignored}>
+                      <FileIcon
+                        node={node}
+                        class="size-4 filetree-icon filetree-icon--mono"
+                        style="color: var(--icon-weak-base)"
+                        mono
+                      />
+                    </Match>
+                    <Match when={active()}>
+                      <FileIcon
+                        node={node}
+                        class="size-4 filetree-icon filetree-icon--mono"
+                        style={kindTextColor(kind()!)}
+                        mono
+                      />
+                    </Match>
+                    <Match when={!node.ignored}>
+                      <span class="filetree-iconpair size-4">
+                        <FileIcon
+                          node={node}
+                          class="size-4 filetree-icon filetree-icon--color opacity-0 group-hover/filetree:opacity-100"
+                        />
+                        <FileIcon
+                          node={node}
+                          class="size-4 filetree-icon filetree-icon--mono group-hover/filetree:opacity-0"
+                          mono
+                        />
+                      </span>
+                    </Match>
+                  </Switch>
+                </FileTreeNode>
               </Match>
             </Switch>
           )
         }}
       </For>
     </div>
-  )
-
-  if (!hasRootActions) return treeBody
-
-  return (
-    <ContextMenu>
-      <ContextMenu.Trigger as="div" class="h-full min-h-32">
-        {treeBody}
-      </ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content>
-          <Show when={props.onRootCreateFile}>
-            <ContextMenu.Item onSelect={() => props.onRootCreateFile?.()}>
-              {language.t("fileTree.action.newFile")}
-            </ContextMenu.Item>
-          </Show>
-          <Show when={props.onRootCreateDirectory}>
-            <ContextMenu.Item onSelect={() => props.onRootCreateDirectory?.()}>
-              {language.t("fileTree.action.newDirectory")}
-            </ContextMenu.Item>
-          </Show>
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu>
   )
 }

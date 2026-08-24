@@ -1,4 +1,3 @@
-import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -6,36 +5,27 @@ import { Keybind } from "@opencode-ai/ui/keybind"
 import { List, type ListRef } from "@opencode-ai/ui/list"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
-import { useNavigate } from "@solidjs/router"
-import { createMemo, createSignal, Match, onCleanup, Show, Switch } from "solid-js"
-import { formatKeybind, useCommand, type CommandOption } from "@/context/command"
-import { useGlobalSDK } from "@/context/global-sdk"
-import { useGlobalSync } from "@/context/global-sync"
-import { useLayout } from "@/context/layout"
-import { useFile } from "@/context/file"
+import { createMemo, createSignal, lazy, Match, Show, Switch } from "solid-js"
+import { formatKeybind } from "@/context/command"
+import { useServerSDK } from "@/context/server-sdk"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
+import { useSettings } from "@/context/settings"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { createSessionTabs } from "@/pages/session/helpers"
 import { decode64 } from "@/utils/base64"
 import { getRelativeTime } from "@/utils/time"
+import {
+  createCommandPaletteFileEntry,
+  createCommandPaletteFileOpener,
+  createCommandPaletteModel,
+  uniqueCommandPaletteEntries,
+  type CommandPaletteEntry,
+} from "./command-palette"
+import { DialogCommandPaletteV2 } from "./dialog-command-palette-v2"
 
-type EntryType = "command" | "file" | "session"
-
-type Entry = {
-  id: string
-  type: EntryType
-  title: string
-  description?: string
-  keybind?: string
-  category: string
-  option?: CommandOption
-  path?: string
-  directory?: string
-  sessionID?: string
-  archived?: number
-  updated?: number
-}
-
+const DialogSelectFileV2 = lazy(() =>
+  import("./dialog-select-directory-v2").then((module) => ({ default: module.DialogSelectDirectoryV2 })),
+)
 type DialogSelectFileMode = "all" | "files"
 
 const ENTRY_LIMIT = 5
@@ -274,51 +264,55 @@ export function DialogSelectFile(props: {
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const { params, tabs, view } = useSessionLayout()
+export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFile?: (path: string) => void }) {
+  const platform = usePlatform()
+  const settings = useSettings()
   const filesOnly = () => props.mode === "files"
-  const state = { cleanup: undefined as (() => void) | void, committed: false }
-  const [grouped, setGrouped] = createSignal(false)
-  const commandEntries = createCommandEntries({ filesOnly, command, language })
-  const fileEntries = createFileEntries({ file, tabs, language })
 
-  const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
-  const project = createMemo(() => {
-    const directory = projectDirectory()
-    if (!directory) return
-    return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
-  })
-  const workspaces = createMemo(() => {
-    const directory = projectDirectory()
-    const current = project()
-    if (!current) return directory ? [directory] : []
-
-    const dirs = [current.worktree, ...(current.sandboxes ?? [])]
-    if (directory && !dirs.includes(directory)) return [...dirs, directory]
-    return dirs
-  })
-  const homedir = createMemo(() => globalSync.data.path.home)
-  const label = (directory: string) => {
-    const current = project()
-    const kind =
-      current && directory === current.worktree
-        ? language.t("workspace.type.local")
-        : language.t("workspace.type.sandbox")
-    const [store] = globalSync.child(directory, { bootstrap: false })
-    const home = homedir()
-    const path = home ? directory.replace(home, "~") : directory
-    const name = store.vcs?.branch ?? getFilename(directory)
-    return `${kind} : ${name || path}`
+  if (!filesOnly() && settings.general.newLayoutDesigns()) {
+    return <DialogCommandPaletteV2 onOpenFile={props.onOpenFile} />
   }
 
-  const { sessions } = createSessionEntries({ workspaces, label, globalSDK, language })
+  if (filesOnly() && platform.platform === "desktop" && settings.general.newLayoutDesigns()) {
+    return <DialogSelectFileDesktopV2 onOpenFile={props.onOpenFile} />
+  }
+
+  return <DialogSelectFileLegacy filesOnly={filesOnly} onOpenFile={props.onOpenFile} />
+}
+
+function DialogSelectFileDesktopV2(props: { onOpenFile?: (path: string) => void }) {
+  const language = useLanguage()
+  const serverSDK = useServerSDK()
+  const { params } = useSessionLayout()
+  const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
+  const openFile = createCommandPaletteFileOpener(props.onOpenFile)
+
+  return (
+    <DialogSelectFileV2
+      server={serverSDK().server}
+      mode="file"
+      start={projectDirectory()}
+      title={language.t("session.header.searchFiles")}
+      onSelect={(result) => {
+        if (typeof result !== "string") return
+        openFile(result)
+      }}
+    />
+  )
+}
+
+function DialogSelectFileLegacy(props: { filesOnly: () => boolean; onOpenFile?: (path: string) => void }) {
+  const palette = createCommandPaletteModel(props)
+  const [grouped, setGrouped] = createSignal(false)
 
   const items = async (text: string) => {
     const query = text.trim()
     setGrouped(query.length > 0)
 
-    if (!query && filesOnly()) {
-      const loaded = file.tree.state("")?.loaded
-      const pending = loaded ? Promise.resolve() : file.tree.list("")
-      const next = uniqueEntries([...fileEntries.recent(), ...fileEntries.root()])
+    if (!query && props.filesOnly()) {
+      const loaded = palette.file.tree.state("")?.loaded
+      const pending = loaded ? Promise.resolve() : palette.file.tree.list("")
+      const next = uniqueCommandPaletteEntries([...palette.recentFileEntries(), ...palette.rootFileEntries()])
 
       if (loaded || next.length > 0) {
         void pending
@@ -326,21 +320,24 @@ export function DialogSelectFile(props: {
       }
 
       await pending
-      return uniqueEntries([...fileEntries.recent(), ...fileEntries.root()])
+      return uniqueCommandPaletteEntries([...palette.recentFileEntries(), ...palette.rootFileEntries()])
     }
 
-    if (!query) return [...commandEntries.picks(), ...fileEntries.recent()]
+    if (!query) return [...palette.preferredCommandEntries(), ...palette.recentFileEntries()]
 
-    if (filesOnly()) {
-      const files = await file.searchFiles(query)
-      const category = language.t("palette.group.files")
-      return files.map((path) => createFileEntry(path, category))
+    if (props.filesOnly()) {
+      const files = await palette.file.searchFiles(query)
+      const category = palette.language.t("palette.group.files")
+      return files.map((path) => createCommandPaletteFileEntry(path, category))
     }
 
-    const [files, nextSessions] = await Promise.all([file.searchFiles(query), Promise.resolve(sessions(query))])
-    const category = language.t("palette.group.files")
-    const entries = files.map((path) => createFileEntry(path, category))
-    return [...commandEntries.list(), ...nextSessions, ...entries]
+    const [files, nextSessions] = await Promise.all([
+      palette.file.searchFiles(query),
+      Promise.resolve(palette.sessions(query)),
+    ])
+    const category = palette.language.t("palette.group.files")
+    const entries = files.map((path) => createCommandPaletteFileEntry(path, category))
+    return [...palette.commandEntries(), ...nextSessions, ...entries]
   }
 
   const handleMove = (item: Entry | undefined) => {
@@ -398,21 +395,26 @@ export function DialogSelectFile(props: {
     <Dialog class="pt-3 pb-0 !max-h-[480px]" transition>
       <List
         ref={applyInitialQuery}
+  return (
+    <Dialog class="pt-3 pb-0 !max-h-[480px]" transition>
+      <List
+        class="px-3"
         search={{
-          placeholder: filesOnly()
-            ? language.t("session.header.searchFiles")
-            : language.t("palette.search.placeholder"),
+          placeholder: props.filesOnly()
+            ? palette.language.t("session.header.searchFiles")
+            : palette.language.t("palette.search.placeholder"),
           autofocus: true,
           hideIcon: true,
         }}
-        emptyMessage={language.t("palette.empty")}
-        loadingMessage={language.t("common.loading")}
+        emptyMessage={palette.language.t("palette.empty")}
+        loadingMessage={palette.language.t("common.loading")}
         items={items}
         key={(item) => item.id}
         filterKeys={["title", "description", "category"]}
+        skipFilter={(item) => item.type === "file"}
         groupBy={grouped() ? (item) => item.category : () => ""}
-        onMove={handleMove}
-        onSelect={handleSelect}
+        onMove={(item: CommandPaletteEntry | undefined) => palette.highlight(item)}
+        onSelect={(item: CommandPaletteEntry | undefined) => palette.select(item)}
       >
         {(item) => (
           <Switch
@@ -439,7 +441,7 @@ export function DialogSelectFile(props: {
                   </Show>
                 </div>
                 <Show when={item.keybind}>
-                  <Keybind class="rounded-[4px]">{formatKeybind(item.keybind ?? "", language.t)}</Keybind>
+                  <Keybind class="rounded-[4px]">{formatKeybind(item.keybind ?? "", palette.language.t)}</Keybind>
                 </Show>
               </div>
             </Match>
@@ -466,7 +468,7 @@ export function DialogSelectFile(props: {
                 </div>
                 <Show when={item.updated}>
                   <span class="text-12-regular text-text-weak whitespace-nowrap ml-2">
-                    {getRelativeTime(new Date(item.updated!).toISOString(), language.t)}
+                    {getRelativeTime(new Date(item.updated!).toISOString(), palette.language.t)}
                   </span>
                 </Show>
               </div>
