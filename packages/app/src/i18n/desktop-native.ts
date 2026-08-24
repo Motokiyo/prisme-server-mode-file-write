@@ -202,7 +202,7 @@ export function detectDesktopNativeLocale(languages: readonly string[]): Desktop
     if (["no", "nb", "nn"].includes(source.language)) return "no"
     const match = DESKTOP_NATIVE_LOCALES.find((candidate) => {
       const target = locale(DESKTOP_NATIVE_LOCALE_TAGS[candidate])
-      return target?.language === source.language && target.script === source.script
+      return target?.language === source.language && sameScript(target.script, source.script)
     })
     if (match) return match
   }
@@ -211,6 +211,22 @@ export function detectDesktopNativeLocale(languages: readonly string[]): Desktop
 
 export function desktopNativePluralCategories(locale: DesktopNativeLocale) {
   return new Intl.PluralRules(DESKTOP_NATIVE_LOCALE_TAGS[locale]).resolvedOptions().pluralCategories
+}
+
+// CLDR traite "Aran" (nastaliq) comme une variante stylistique de "Arab", et les
+// versions recentes d'ICU maximisent "pa-PK" en "pa-Aran-PK" la ou les plus anciennes
+// donnaient "pa-Arab-PK". Pour le choix d'un bundle de traduction, les deux designent
+// la meme ecriture : comparer les codes bruts ferait tomber le pendjabi sur l'anglais
+// selon la version d'ICU embarquee. On normalise donc avant comparaison.
+const SCRIPT_ALIASES: Record<string, string> = { Aran: "Arab" }
+
+function normalizeScript(script: string | undefined) {
+  if (!script) return script
+  return SCRIPT_ALIASES[script] ?? script
+}
+
+function sameScript(a: string | undefined, b: string | undefined) {
+  return normalizeScript(a) === normalizeScript(b)
 }
 
 function locale(value: string) {

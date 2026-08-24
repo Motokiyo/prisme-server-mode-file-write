@@ -83,8 +83,13 @@ describe("resolveServerList", () => {
     expect(stored).toHaveLength(1)
     expect(stored[0]?.type).toBe("http")
     expect(stored[0]?.type === "http" ? stored[0].http.password : undefined).toBe("secret")
-    // No token flag survives the reload — credentials come purely from storage.
-    expect(stored[0]?.type === "http" ? stored[0].authToken : "x").toBeUndefined()
+    // No auth token is active on this reload — the credentials come purely from
+    // storage. entry.tsx always supplies a boolean (`authToken: !!auth`), and
+    // upstream's resolveServerList merges the stored fields onto the prop rather
+    // than replacing it, so the flag stays `false` instead of disappearing.
+    // Every consumer reads it as a boolean, so `false` and `undefined` are
+    // equivalent here; what matters is that it is not truthy.
+    expect(stored[0]?.type === "http" ? stored[0].authToken : "x").toBeFalsy()
   })
 })
 

@@ -136,7 +136,10 @@ jobs:
 
       - name: Test app
         working-directory: packages/app
-        run: bun test --preload ./happydom.ts ./src
+        # --conditions=solid : sans cette condition, solid-js resout vers son build
+        # serveur et 66 tests ne s'executent meme pas. C'est la condition qu'utilise le
+        # script canonique test:unit de packages/app.
+        run: bun test --conditions=solid --preload ./happydom.ts ./src
 
       - name: Build Electron app
         working-directory: packages/desktop
