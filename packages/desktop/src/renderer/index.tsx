@@ -257,7 +257,7 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
 
       const notification = new Notification(title, {
         body: description ?? "",
-        icon: "https://opencode.ai/favicon-96x96-v3.png",
+        icon: "favicon-96x96-v3.png",
       })
       notification.onclick = () => {
         void window.api.showWindow()
@@ -313,6 +313,30 @@ const createPlatform = (windowState: DesktopWindowState): Platform => {
       return new File([blob], `pasted-image-${Date.now()}.png`, {
         type: "image/png",
       })
+    },
+
+    writeTextFile(path: string, content: string) {
+      return window.api.writeTextFile(path, content)
+    },
+
+    pathExists(path: string) {
+      return window.api.pathExists(path)
+    },
+
+    renameFile(oldPath: string, newPath: string) {
+      return window.api.renameFile(oldPath, newPath)
+    },
+
+    deleteFile(path: string) {
+      return window.api.deleteFile(path)
+    },
+
+    createDirectory(path: string) {
+      return window.api.createDirectory(path)
+    },
+
+    deleteDirectory(path: string) {
+      return window.api.deleteDirectory(path)
     },
   }
 }

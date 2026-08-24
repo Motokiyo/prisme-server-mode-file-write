@@ -107,6 +107,12 @@ export type ElectronAPI = {
   onPinchZoomEnabledChanged: (cb: (enabled: boolean) => void) => () => void
   onZoomFactorChanged: (cb: (factor: number) => void) => () => void
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
+  writeTextFile: (path: string, content: string) => Promise<void>
+  pathExists: (path: string) => Promise<boolean>
+  renameFile: (oldPath: string, newPath: string) => Promise<void>
+  deleteFile: (path: string) => Promise<void>
+  createDirectory: (path: string) => Promise<void>
+  deleteDirectory: (path: string) => Promise<void>
   runDesktopMenuAction: (action: DesktopMenuAction) => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>

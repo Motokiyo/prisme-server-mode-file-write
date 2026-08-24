@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { stat } from "node:fs/promises"
+import { access, mkdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
@@ -290,6 +290,30 @@ export function registerIpcHandlers(deps: Deps) {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
     setTitlebar(win, theme)
+  })
+  // Prisme filesystem bridge: lets the renderer read and write project files directly.
+  ipcMain.handle("write-text-file", (_event: IpcMainInvokeEvent, path: string, content: string) => {
+    return writeFile(path, content, "utf8")
+  })
+  ipcMain.handle("path-exists", async (_event: IpcMainInvokeEvent, path: string) => {
+    try {
+      await access(path)
+      return true
+    } catch {
+      return false
+    }
+  })
+  ipcMain.handle("rename-file", (_event: IpcMainInvokeEvent, oldPath: string, newPath: string) => {
+    return rename(oldPath, newPath)
+  })
+  ipcMain.handle("delete-file", (_event: IpcMainInvokeEvent, path: string) => {
+    return unlink(path)
+  })
+  ipcMain.handle("create-directory", (_event: IpcMainInvokeEvent, path: string) => {
+    return mkdir(path, { recursive: true }).then(() => undefined)
+  })
+  ipcMain.handle("delete-directory", (_event: IpcMainInvokeEvent, path: string) => {
+    return rm(path, { recursive: true, force: true })
   })
   ipcMain.handle("run-desktop-menu-action", (event: IpcMainInvokeEvent, action: DesktopMenuAction) => {
     runDesktopMenuAction(BrowserWindow.fromWebContents(event.sender), action, {

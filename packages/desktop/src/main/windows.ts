@@ -180,7 +180,7 @@ export function createMainWindow(id: string = randomUUID()) {
     height: state.height,
     show: false,
     autoHideMenuBar: true,
-    title: "OpenCode",
+    title: "Prisme",
     icon: iconPath(),
     backgroundColor: backgroundColor ?? defaultBackgroundColor(),
     ...(process.platform === "darwin"
@@ -482,17 +482,29 @@ function allowRendererPermissions(win: BrowserWindow) {
   const webContentsId = win.webContents.id
 
   win.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    callback(
-      rendererPermissions.has(permission) &&
-        isTrustedRendererUrl(details.requestingUrl) &&
-        webContents.id === webContentsId,
-    )
+    if (webContents.id !== webContentsId || !isTrustedRendererUrl(details.requestingUrl)) {
+      callback(false)
+      return
+    }
+    callback(rendererPermissions.has(permission) || isAudioCapturePermission(permission, details))
   })
   win.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    if (!rendererPermissions.has(permission)) return false
     if (webContents && webContents.id !== webContentsId) return false
-    return isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
+    if (!isTrustedRendererUrl(details.requestingUrl) && !isTrustedRendererUrl(requestingOrigin)) return false
+    return rendererPermissions.has(permission) || isAudioCapturePermission(permission, details)
   })
+}
+
+// Prisme grants microphone access so the renderer can transcribe voice into chat
+// messages. Audio only: a video request is still denied.
+function isAudioCapturePermission(permission: string, details: unknown) {
+  if (permission !== "media") return false
+  if (!details || typeof details !== "object") return false
+  if ("mediaTypes" in details) {
+    const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes
+    if (mediaTypes) return mediaTypes.includes("audio") && !mediaTypes.includes("video")
+  }
+  return "mediaType" in details && (details as { mediaType?: string }).mediaType === "audio"
 }
 
 function isTrustedRendererUrl(value?: string) {

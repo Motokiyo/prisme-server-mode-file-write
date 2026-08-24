@@ -127,6 +127,12 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener("zoom-factor-changed", handler)
   },
   setTitlebar: (theme) => ipcRenderer.invoke("set-titlebar", theme),
+  writeTextFile: (path, content) => ipcRenderer.invoke("write-text-file", path, content),
+  pathExists: (path) => ipcRenderer.invoke("path-exists", path),
+  renameFile: (oldPath, newPath) => ipcRenderer.invoke("rename-file", oldPath, newPath),
+  deleteFile: (path) => ipcRenderer.invoke("delete-file", path),
+  createDirectory: (path) => ipcRenderer.invoke("create-directory", path),
+  deleteDirectory: (path) => ipcRenderer.invoke("delete-directory", path),
   runDesktopMenuAction: (action) => ipcRenderer.invoke("run-desktop-menu-action", action),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
   exportDebugLogs: () => ipcRenderer.invoke("export-debug-logs"),
