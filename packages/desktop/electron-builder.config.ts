@@ -27,6 +27,12 @@ const channel = (() => {
   return "dev"
 })()
 
+// Signature macOS : sans certificat Developer ID ni cle App Store Connect, on
+// produit une build NON SIGNEE au lieu d'echouer. electron-builder interprete un
+// CSC_LINK vide comme un chemin de fichier ("<dir> not a file"), d'ou identity: null
+// qui court-circuite entierement la signature.
+const macSigned = Boolean(process.env.CSC_LINK) && Boolean(process.env.APPLE_API_KEY_ID)
+
 const githubPublish = {
   provider: "github" as const,
   owner: "Motokiyo",
@@ -54,18 +60,19 @@ const getBase = (): Configuration => ({
   mac: {
     category: "public.app-category.productivity",
     icon: `resources/icons/icon.icns`,
-    hardenedRuntime: true,
+    hardenedRuntime: macSigned,
     gatekeeperAssess: false,
+    ...(macSigned ? {} : { identity: null }),
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
     extendInfo: {
       NSMicrophoneUsageDescription: "Prisme uses the microphone to transcribe your voice into chat messages.",
     },
-    notarize: true,
+    notarize: macSigned,
     target: ["dmg", "zip"],
   },
   dmg: {
-    sign: true,
+    sign: macSigned,
   },
   protocols: {
     name: "Prisme",
