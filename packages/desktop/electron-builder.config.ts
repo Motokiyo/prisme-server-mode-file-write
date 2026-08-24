@@ -29,8 +29,8 @@ const channel = (() => {
 
 const githubPublish = {
   provider: "github" as const,
-  owner: "EliottMeunierFluid",
-  repo: "prismeworkspace",
+  owner: "Motokiyo",
+  repo: "prisme-server-mode-file-write",
   channel: channel === "beta" ? "beta" : "latest",
   releaseType: channel === "beta" ? ("prerelease" as const) : ("release" as const),
 }

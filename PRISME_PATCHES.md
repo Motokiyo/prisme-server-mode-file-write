@@ -47,7 +47,7 @@ This branch keeps the repository close to `sst/opencode/dev` and applies Prisme 
 - App version: **1.14.39**. Date: 2026-05-22.
 - Files: `packages/app/src/entry.tsx` (`getCurrentUrl` honors a build-time `VITE_OPENCODE_SERVER_HOST/PORT` in production too, falling back to same-origin for Electron/generic builds), `packages/app/vite.config.ts` (adds a `preview` block with `allowedHosts: true`), `systemd: /etc/systemd/system/prisme-web.service.d/use-preview.conf` (drop-in: `vite preview` instead of `vite dev`).
 - Why: the web UI was served by a **Vite dev server**, whose HMR client forces a full page reload on websocket reconnect (e.g. when returning to the tab). Serving a **production build** (`vite preview`) removes the HMR client entirely, so the page no longer reloads on refocus.
-- Deploy: `cd packages/app && VITE_OPENCODE_SERVER_HOST=100.115.131.25 VITE_OPENCODE_SERVER_PORT=4096 bun run build`, then the systemd drop-in serves `dist/` on `:3090`. Rebuild after any app code change (the dev server's live edit is no longer used). Revert by removing the drop-in (back to `vite dev`).
+- Deploy: `cd packages/app && VITE_OPENCODE_SERVER_HOST=<ip-privee-du-serveur> VITE_OPENCODE_SERVER_PORT=4096 bun run build`, then the systemd drop-in serves `dist/` on `:3090`. Rebuild after any app code change (the dev server's live edit is no longer used). Revert by removing the drop-in (back to `vite dev`).
 
 ## Merge Rules
 

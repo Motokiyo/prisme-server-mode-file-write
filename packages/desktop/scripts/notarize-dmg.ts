@@ -9,7 +9,11 @@ const keyId = process.env.APPLE_API_KEY_ID
 const issuer = process.env.APPLE_API_ISSUER
 
 if (!key || !keyId || !issuer) {
-  throw new Error("APPLE_API_KEY, APPLE_API_KEY_ID, and APPLE_API_ISSUER are required")
+  // Meme idiome que script/sign-windows.ps1 : quand la signature n'est pas configuree,
+  // on saute proprement au lieu de faire echouer tout le job de build. Le DMG sort alors
+  // non notarise, et Gatekeeper le mettra en quarantaine chez l'utilisateur final.
+  console.log("Skipping macOS notarization because App Store Connect credentials are not configured")
+  process.exit(0)
 }
 
 const dist = path.resolve("dist")
